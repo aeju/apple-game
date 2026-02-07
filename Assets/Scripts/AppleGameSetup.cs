@@ -87,7 +87,7 @@ public class AppleGameSetup : MonoBehaviour
 
         cam.transform.position = new Vector3(0f, 0f, -10f);
         cam.transform.rotation = Quaternion.identity;
-        cam.backgroundColor = new Color(0.08f, 0.10f, 0.14f);
+        cam.backgroundColor = new Color(0.04f, 0.04f, 0.06f); // 검정 고양이 테마 배경
         cam.clearFlags = CameraClearFlags.SolidColor;
     }
 
@@ -221,7 +221,7 @@ public class AppleGameSetup : MonoBehaviour
 
         bgGo.transform.position = new Vector3(0f, 0f, 0.5f);
         bgGo.transform.localScale = new Vector3(gridWidth, gridHeight, 1f);
-        bgSr.color = new Color(0.15f, 0.18f, 0.22f, 0.6f);
+        bgSr.color = new Color(0.08f, 0.08f, 0.12f, 0.5f); // 고양이 테마 어두운 배경
         bgSr.sortingOrder = -1;
     }
 }

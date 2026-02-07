@@ -44,16 +44,16 @@ public class DragSelector : MonoBehaviour
     /// </summary>
     private void CreateVisuals()
     {
-        // 반투명 채우기
+        // 반투명 채우기 (고양이 눈 황금색 틴트)
         var fillGo = new GameObject("SelectionFill");
         fillGo.transform.SetParent(transform);
         _fillRenderer = fillGo.AddComponent<SpriteRenderer>();
         _fillRenderer.sprite = CreateSquareSprite();
-        _fillRenderer.color = new Color(1f, 1f, 1f, 0.15f);
+        _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.10f);
         _fillRenderer.sortingOrder = 10;
         _fillRenderer.enabled = false;
 
-        // 테두리
+        // 테두리 (황금색)
         var borderGo = new GameObject("SelectionBorder");
         borderGo.transform.SetParent(transform);
         _borderRenderer = borderGo.AddComponent<LineRenderer>();
@@ -67,8 +67,8 @@ public class DragSelector : MonoBehaviour
                   ?? Shader.Find("Sprites/Default")
                   ?? Shader.Find("Hidden/Internal-Colored");
         _borderRenderer.material = new Material(shader);
-        _borderRenderer.startColor = Color.white;
-        _borderRenderer.endColor = Color.white;
+        _borderRenderer.startColor = new Color(0.95f, 0.78f, 0.10f, 0.6f);
+        _borderRenderer.endColor = new Color(0.95f, 0.78f, 0.10f, 0.6f);
         _borderRenderer.sortingOrder = 11;
         _borderRenderer.enabled = false;
 
@@ -184,28 +184,31 @@ public class DragSelector : MonoBehaviour
 
             if (_currentSum == target)
             {
-                _sumText.color = new Color(0.3f, 1f, 0.3f); // 초록
-                _fillRenderer.color = new Color(0.3f, 1f, 0.3f, 0.2f);
-                SetBorderColor(new Color(0.3f, 1f, 0.3f));
+                // 성공 - 밝은 황금색 (고양이 눈이 번쩍!)
+                _sumText.color = new Color(0.95f, 0.85f, 0.10f);
+                _fillRenderer.color = new Color(0.95f, 0.85f, 0.10f, 0.25f);
+                SetBorderColor(new Color(0.95f, 0.85f, 0.10f));
             }
             else if (_currentSum > target)
             {
-                _sumText.color = new Color(1f, 0.4f, 0.4f); // 빨강
-                _fillRenderer.color = new Color(1f, 0.3f, 0.3f, 0.15f);
-                SetBorderColor(new Color(1f, 0.4f, 0.4f));
+                // 초과 - 빨강 (화난 고양이)
+                _sumText.color = new Color(1f, 0.35f, 0.35f);
+                _fillRenderer.color = new Color(1f, 0.25f, 0.25f, 0.15f);
+                SetBorderColor(new Color(1f, 0.35f, 0.35f));
             }
             else
             {
-                _sumText.color = Color.white;
-                _fillRenderer.color = new Color(1f, 1f, 1f, 0.15f);
-                SetBorderColor(Color.white);
+                // 진행 중 - 부드러운 황금색
+                _sumText.color = new Color(0.95f, 0.78f, 0.10f, 0.8f);
+                _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.12f);
+                SetBorderColor(new Color(0.95f, 0.78f, 0.10f, 0.7f));
             }
         }
         else
         {
             _sumText.enabled = false;
-            _fillRenderer.color = new Color(1f, 1f, 1f, 0.12f);
-            SetBorderColor(new Color(1f, 1f, 1f, 0.6f));
+            _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.08f);
+            SetBorderColor(new Color(0.95f, 0.78f, 0.10f, 0.4f));
         }
     }
 
@@ -229,7 +232,7 @@ public class DragSelector : MonoBehaviour
             center /= _currentSelection.Count;
 
             ScoreManager.Instance?.AddScore(count, center);
-            AudioManager.Instance?.PlaySFX("success");
+            AudioManager.Instance?.PlaySFX("meow");
 
             // 사과 제거
             var applesToRemove = new List<Apple>(_currentSelection);
@@ -244,8 +247,8 @@ public class DragSelector : MonoBehaviour
         }
         else
         {
-            // 실패 피드백
-            AudioManager.Instance?.PlaySFX("fail");
+            // 실패 피드백 (화난 고양이)
+            AudioManager.Instance?.PlaySFX("hiss");
         }
     }
 

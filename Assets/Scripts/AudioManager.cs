@@ -9,14 +9,14 @@ public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
 
-    [Header("Audio Clips (Optional - Inspector에서 할당)")]
-    public AudioClip BGMClip;
-    public AudioClip SuccessClip;
-    public AudioClip FailClip;
-    public AudioClip ComboClip;
-    public AudioClip CountdownClip;
-    public AudioClip GameOverClip;
-    public AudioClip ButtonClickClip;
+    [Header("Audio Clips - Cat Theme (Inspector에서 할당)")]
+    public AudioClip BGMClip;            // BGM - 재즈 고양이 카페 분위기
+    public AudioClip SuccessClip;        // 성공 - 냥!
+    public AudioClip FailClip;           // 실패 - 흐응
+    public AudioClip ComboClip;          // 콤보 - 골골송 (purr)
+    public AudioClip CountdownClip;      // 카운트다운
+    public AudioClip GameOverClip;       // 게임 오버 - 하품
+    public AudioClip ButtonClickClip;    // 버튼 클릭
 
     [Header("Settings")]
     [Range(0f, 1f)] public float BGMVolume = 0.5f;
@@ -43,11 +43,14 @@ public class AudioManager : MonoBehaviour
         _sfxSource.playOnAwake = false;
         _sfxSource.volume = SFXVolume;
 
-        // 이름으로 클립을 찾을 수 있도록 매핑
+        // 이름으로 클립을 찾을 수 있도록 매핑 (고양이 테마 별칭 포함)
         _clipMap = new Dictionary<string, AudioClip>();
         RegisterClip("success", SuccessClip);
+        RegisterClip("meow", SuccessClip);       // 냥! (성공 별칭)
         RegisterClip("fail", FailClip);
+        RegisterClip("hiss", FailClip);           // 흐응 (실패 별칭)
         RegisterClip("combo", ComboClip);
+        RegisterClip("purr", ComboClip);          // 골골송 (콤보 별칭)
         RegisterClip("countdown", CountdownClip);
         RegisterClip("gameover", GameOverClip);
         RegisterClip("button", ButtonClickClip);
