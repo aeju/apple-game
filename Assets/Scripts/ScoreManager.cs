@@ -62,6 +62,7 @@ public class ScoreManager : MonoBehaviour
         Score += totalPoints;
         ApplesRemoved += appleCount;
 
+        Debug.Log($"[ScoreManager] Score updated: {Score}, Combo: {Combo}, Points added: {totalPoints}");
         OnScoreChanged?.Invoke(Score);
         OnComboChanged?.Invoke(Combo, MaxCombo);
         OnScorePopup?.Invoke(totalPoints, worldPos);

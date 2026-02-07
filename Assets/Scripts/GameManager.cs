@@ -145,9 +145,12 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public bool UseHint()
     {
+        Debug.Log($"[GameManager] UseHint called - HintsLeft: {HintsLeft}, State: {State}");
+        
         if (HintsLeft <= 0 || State != GameState.Playing) return false;
         HintsLeft--;
         OnHintsChanged?.Invoke(HintsLeft);
+        Debug.Log($"[GameManager] Showing hint for target sum: {TargetSum}");
         GridManager.Instance?.ShowHint(TargetSum);
         return true;
     }

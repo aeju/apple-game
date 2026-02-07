@@ -12,6 +12,13 @@ public class UIManager : MonoBehaviour
 {
     public static UIManager Instance { get; private set; }
 
+    [Header("Floating Score Settings")]
+    [Tooltip("점수 팝업 텍스트에 사용할 TMP 폰트 (null이면 기본 폰트 사용)")]
+    [SerializeField] private TMP_FontAsset floatingScoreFont = null;
+    
+    [Tooltip("점수 팝업 텍스트 크기 (기본값: 6)")]
+    [SerializeField] private float floatingScoreFontSize = 6f;
+
     // 패널
     private GameObject _mainMenuPanel;
     private GameObject _hudPanel;
@@ -132,20 +139,27 @@ public class UIManager : MonoBehaviour
             var texts = topBar.GetComponentsInChildren<TextMeshProUGUI>(true);
             foreach (var txt in texts)
             {
-                if (txt.name == "Text")
+                // 숫자만 있는 텍스트 (0 또는 숫자) → Score
+                if (txt.name == "Text" && (txt.text == "0" || (int.TryParse(txt.text, out _) && !txt.text.Contains(":"))))
                 {
-                    if (txt.text == "0" || txt.text.Contains("SCORE"))
+                    // 좌측에 있는 숫자 텍스트만 Score로 인식 (x < 0)
+                    var rt = txt.GetComponent<RectTransform>();
+                    if (rt != null && rt.anchoredPosition.x < -100)
                     {
-                        _scoreText = txt.text == "0" ? txt : _scoreText;
+                        _scoreText = txt;
+                        Debug.Log($"[UIManager] Found _scoreText: {txt.text} at position {rt.anchoredPosition}");
                     }
-                    else if (txt.text == "2:00" || txt.text.Contains(":"))
-                    {
-                        _timerText = txt;
-                    }
-                    else if (txt.text.Contains("SCORE"))
-                    {
-                        _primaryTexts.Add(txt);
-                    }
+                }
+                // 시간 형식 (2:00 등) → Timer
+                else if (txt.name == "Text" && txt.text.Contains(":"))
+                {
+                    _timerText = txt;
+                    Debug.Log($"[UIManager] Found _timerText: {txt.text}");
+                }
+                // SCORE 라벨
+                else if (txt.text.Contains("SCORE"))
+                {
+                    _primaryTexts.Add(txt);
                 }
             }
 
@@ -156,10 +170,20 @@ public class UIManager : MonoBehaviour
                 _timerSliderFill = slider.fillRect?.GetComponent<Image>();
             }
 
-            _comboText = _hudPanel.GetComponentInChildren<TextMeshProUGUI>(true);
+            // Combo 텍스트 찾기 (우측 상단)
+            foreach (var txt in texts)
+            {
+                var rt = txt.GetComponent<RectTransform>();
+                if (rt != null && rt.anchoredPosition.x > 200 && txt.text == "")
+                {
+                    _comboText = txt;
+                    Debug.Log($"[UIManager] Found _comboText at position {rt.anchoredPosition}");
+                    break;
+                }
+            }
         }
 
-        // 버튼 재참조
+        // 버튼 재참조 및 이벤트 재연결
         var buttons = _hudPanel.GetComponentsInChildren<Button>(true);
         foreach (var btn in buttons)
         {
@@ -170,11 +194,22 @@ public class UIManager : MonoBehaviour
                 {
                     _hintButton = btn;
                     _hintButtonText = label;
+                    // 힌트 버튼 이벤트 재연결
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => 
+                    { 
+                        Debug.Log("[UIManager] HINT button clicked!");
+                        GameManager.Instance?.UseHint(); 
+                    });
+                    Debug.Log("[UIManager] HINT button event reconnected");
                 }
                 else if (label.text.Contains("SHUFFLE"))
                 {
                     _shuffleButton = btn;
                     _shuffleButtonText = label;
+                    // 셔플 버튼 이벤트 재연결
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
                 }
             }
         }
@@ -350,7 +385,11 @@ public class UIManager : MonoBehaviour
                 if (label.text.Contains("HINT"))
                 {
                     btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(() => { GameManager.Instance?.UseHint(); });
+                    btn.onClick.AddListener(() => 
+                    { 
+                        Debug.Log("[UIManager] HINT button clicked (hudButtons2)!");
+                        GameManager.Instance?.UseHint(); 
+                    });
                 }
                 else if (label.text.Contains("SHUFFLE"))
                 {
@@ -395,6 +434,8 @@ public class UIManager : MonoBehaviour
         // Play 모드에서만 이벤트 구독
         if (!Application.isPlaying) return;
 
+        Debug.Log("[UIManager] Start() - Registering event listeners...");
+
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnStateChanged.AddListener(ShowPanel);
@@ -402,6 +443,7 @@ public class UIManager : MonoBehaviour
             GameManager.Instance.OnCountdownTick.AddListener(UpdateCountdown);
             GameManager.Instance.OnHintsChanged.AddListener(UpdateHintButton);
             GameManager.Instance.OnShufflesChanged.AddListener(UpdateShuffleButton);
+            Debug.Log("[UIManager] GameManager events registered");
         }
 
         if (ScoreManager.Instance != null)
@@ -409,12 +451,19 @@ public class UIManager : MonoBehaviour
             ScoreManager.Instance.OnScoreChanged.AddListener(UpdateScore);
             ScoreManager.Instance.OnComboChanged.AddListener(UpdateCombo);
             ScoreManager.Instance.OnScorePopup.AddListener(SpawnFloatingScore);
+            Debug.Log("[UIManager] ScoreManager events registered");
+        }
+        else
+        {
+            Debug.LogWarning("[UIManager] ScoreManager.Instance is null in Start()!");
         }
 
         if (ThemeManager.Instance != null)
         {
             ThemeManager.Instance.OnThemeChanged.AddListener(OnThemeChanged);
         }
+
+        Debug.Log($"[UIManager] _scoreText is null: {_scoreText == null}");
     }
 
     // ─── 테마 전환 ───
@@ -691,6 +740,7 @@ public class UIManager : MonoBehaviour
         var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", Color.white,
             new Vector2(-120, 0), new Vector2(180, 55), 22, () =>
             {
+                Debug.Log("[UIManager] HINT button clicked (CreateButton)!");
                 GameManager.Instance?.UseHint();
             });
         _hintButton = hintBtnGo.GetComponent<Button>();
@@ -914,7 +964,14 @@ public class UIManager : MonoBehaviour
     private void UpdateScore(int score)
     {
         if (_scoreText != null)
+        {
             _scoreText.text = score.ToString();
+            Debug.Log($"[UIManager] Score updated to: {score}");
+        }
+        else
+        {
+            Debug.LogError("[UIManager] _scoreText is null! Cannot update score.");
+        }
     }
 
     private void UpdateTimer(float time)
@@ -1197,8 +1254,13 @@ public class UIManager : MonoBehaviour
         go.transform.position = worldPos;
 
         var tmp = go.AddComponent<TextMeshPro>();
+        
+        // 커스텀 폰트 적용
+        if (floatingScoreFont != null)
+            tmp.font = floatingScoreFont;
+        
         tmp.text = $"+{points}";
-        tmp.fontSize = 6;
+        tmp.fontSize = floatingScoreFontSize;
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = CAT_EYE_GOLD;

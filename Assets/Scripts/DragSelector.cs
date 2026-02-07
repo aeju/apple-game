@@ -12,6 +12,13 @@ public class DragSelector : MonoBehaviour
 {
     public static DragSelector Instance { get; private set; }
 
+    [Header("Sum Text Settings")]
+    [Tooltip("드래그 점수 텍스트에 사용할 TMP 폰트 (null이면 기본 폰트 사용)")]
+    [SerializeField] private TMP_FontAsset sumTextFont = null;
+    
+    [Tooltip("드래그 점수 텍스트 크기 (기본값: 4.5)")]
+    [SerializeField] private float sumTextFontSize = 4.5f;
+
     private bool _isDragging;
     private Vector3 _dragStart;
     private Vector3 _dragEnd;
@@ -103,7 +110,12 @@ public class DragSelector : MonoBehaviour
         var sumGo = new GameObject("SumLabel");
         sumGo.transform.SetParent(transform);
         _sumText = sumGo.AddComponent<TextMeshPro>();
-        _sumText.fontSize = 4.5f;
+        
+        // 커스텀 폰트 적용
+        if (sumTextFont != null)
+            _sumText.font = sumTextFont;
+        
+        _sumText.fontSize = sumTextFontSize;
         _sumText.fontStyle = FontStyles.Bold;
         _sumText.alignment = TextAlignmentOptions.Center;
         _sumText.sortingOrder = 12;
@@ -180,16 +192,10 @@ public class DragSelector : MonoBehaviour
         _fillRenderer.transform.position = new Vector3(center.x, center.y, 0f);
         _fillRenderer.transform.localScale = new Vector3(size.x, size.y, 1f);
 
-        // 테두리
-        float z = -0.01f;
-        _borderRenderer.SetPositions(new Vector3[]
-        {
-            new Vector3(min.x, min.y, z),
-            new Vector3(max.x, min.y, z),
-            new Vector3(max.x, max.y, z),
-            new Vector3(min.x, max.y, z),
-            new Vector3(min.x, min.y, z)
-        });
+        // 둥근 테두리 생성
+        Vector3[] roundedRect = CreateRoundedRectangle(min, max, 0.15f, 8);
+        _borderRenderer.positionCount = roundedRect.Length;
+        _borderRenderer.SetPositions(roundedRect);
 
         // 선택된 사과 업데이트
         ClearHighlights();
@@ -315,5 +321,52 @@ public class DragSelector : MonoBehaviour
     {
         _borderRenderer.startColor = color;
         _borderRenderer.endColor = color;
+    }
+
+    /// <summary>
+    /// 둥근 사각형의 포인트를 생성합니다.
+    /// </summary>
+    private Vector3[] CreateRoundedRectangle(Vector3 min, Vector3 max, float cornerRadius, int segmentsPerCorner)
+    {
+        float z = -0.01f;
+        
+        float width = max.x - min.x;
+        float height = max.y - min.y;
+        float maxRadius = Mathf.Min(width, height) * 0.5f;
+        cornerRadius = Mathf.Min(cornerRadius, maxRadius);
+
+        List<Vector3> points = new List<Vector3>();
+
+        Vector2 bottomLeft = new Vector2(min.x + cornerRadius, min.y + cornerRadius);
+        Vector2 bottomRight = new Vector2(max.x - cornerRadius, min.y + cornerRadius);
+        Vector2 topRight = new Vector2(max.x - cornerRadius, max.y - cornerRadius);
+        Vector2 topLeft = new Vector2(min.x + cornerRadius, max.y - cornerRadius);
+
+        AddCornerPoints(points, bottomLeft, cornerRadius, 180f, 270f, segmentsPerCorner, z);
+        points.Add(new Vector3(bottomRight.x, min.y, z));
+        AddCornerPoints(points, bottomRight, cornerRadius, 270f, 360f, segmentsPerCorner, z);
+        points.Add(new Vector3(max.x, topRight.y, z));
+        AddCornerPoints(points, topRight, cornerRadius, 0f, 90f, segmentsPerCorner, z);
+        points.Add(new Vector3(topLeft.x, max.y, z));
+        AddCornerPoints(points, topLeft, cornerRadius, 90f, 180f, segmentsPerCorner, z);
+        points.Add(new Vector3(min.x, bottomLeft.y, z));
+        points.Add(points[0]);
+
+        return points.ToArray();
+    }
+
+    /// <summary>
+    /// 원호 모서리 포인트를 추가합니다.
+    /// </summary>
+    private void AddCornerPoints(List<Vector3> points, Vector2 center, float radius, float startAngle, float endAngle, int segments, float z)
+    {
+        for (int i = 0; i <= segments; i++)
+        {
+            float t = (float)i / segments;
+            float angle = Mathf.Lerp(startAngle, endAngle, t) * Mathf.Deg2Rad;
+            float x = center.x + Mathf.Cos(angle) * radius;
+            float y = center.y + Mathf.Sin(angle) * radius;
+            points.Add(new Vector3(x, y, z));
+        }
     }
 }

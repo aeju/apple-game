@@ -57,6 +57,7 @@ public class Apple : MonoBehaviour
     private Color _baseColor;
     private Vector3 _normalScale;
     private bool _isUsingCustomSprite = false; // 커스텀 이미지 사용 여부
+    private Coroutine _hintCoroutine = null; // 힌트 애니메이션 코루틴
 
     private static Sprite[] _pawSprites = new Sprite[9];
     private static Sprite[] _customSpritesCache = null;
@@ -404,10 +405,60 @@ public class Apple : MonoBehaviour
     {
         if (!IsActive) return;
         
-        // 커스텀 이미지는 색상 변경하지 않음
-        if (!_isUsingCustomSprite)
+        // 기존 힌트 애니메이션 중지
+        if (_hintCoroutine != null)
         {
-            _sr.color = on ? Color.Lerp(_baseColor, new Color(0.95f, 0.78f, 0.10f), 0.55f) : _baseColor;
+            StopCoroutine(_hintCoroutine);
+            _hintCoroutine = null;
+        }
+        
+        if (on)
+        {
+            // 펄스 애니메이션 시작
+            _hintCoroutine = StartCoroutine(CoHintPulse());
+        }
+        else
+        {
+            // 원래 상태로 복원
+            transform.localScale = _normalScale;
+            _sr.color = _baseColor;
+        }
+    }
+    
+    /// <summary>
+    /// 힌트 펄스 애니메이션 (크기 + 발광)
+    /// </summary>
+    private IEnumerator CoHintPulse()
+    {
+        float pulseSpeed = 3f; // 펄스 속도
+        float minScale = 1.0f;
+        float maxScale = 1.25f; // 최대 25% 확대
+        
+        Color glowColor = new Color(1f, 0.95f, 0.3f); // 황금빛 발광
+        float glowIntensity = _isUsingCustomSprite ? 0.4f : 0.6f; // 커스텀 이미지는 약간 덜 밝게
+        
+        while (true)
+        {
+            float t = Mathf.PingPong(Time.time * pulseSpeed, 1f);
+            
+            // 크기 펄스
+            float scale = Mathf.Lerp(minScale, maxScale, t);
+            transform.localScale = _normalScale * scale;
+            
+            // 색상 펄스 (발광 효과)
+            if (_isUsingCustomSprite)
+            {
+                // 커스텀 이미지: 밝게 빛나는 효과 (원본 색상 유지하면서)
+                float brightness = 1f + (t * 0.3f); // 최대 30% 밝게
+                _sr.color = new Color(brightness, brightness, brightness, 1f);
+            }
+            else
+            {
+                // 프로그래밍 발바닥: 황금빛으로 빛남
+                _sr.color = Color.Lerp(_baseColor, glowColor, t * glowIntensity);
+            }
+            
+            yield return null;
         }
     }
 

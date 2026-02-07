@@ -725,6 +725,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c80176dd1257ba4e802365f16d05688, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  sumTextFont: {fileID: 11400000, guid: 854e1b2826df1dd4c884895484a402fc, type: 2}
+  sumTextFontSize: 4.5
 --- !u!4 &225949975
 Transform:
   m_ObjectHideFlags: 0
@@ -7077,11 +7079,11 @@ MonoBehaviour:
   Rows: 17
   CellSize: 0.5
   numberSprites:
-  - {fileID: 7848078440435235860, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
+  - {fileID: 1824073829655730250, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
   - {fileID: -724738979507612646, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
   - {fileID: -7121106379069717800, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
   - {fileID: -7293405359741946779, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
-  - {fileID: 1824073829655730250, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
+  - {fileID: 7848078440435235860, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
   - {fileID: 6626316153284086251, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
   - {fileID: -2422114584575479679, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}
   - {fileID: 1556101262947198147, guid: 76e14bf468f430046b2e2a71c1349a2e, type: 3}

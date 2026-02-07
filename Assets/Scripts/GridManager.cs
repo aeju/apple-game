@@ -351,15 +351,28 @@ public class GridManager : MonoBehaviour
     /// </summary>
     public void ShowHint(int targetSum)
     {
+        Debug.Log($"[GridManager] ShowHint called for targetSum: {targetSum}");
+        
         var hint = FindValidSelection(targetSum);
-        if (hint == null) return;
+        if (hint == null)
+        {
+            Debug.LogWarning($"[GridManager] No valid hint found for targetSum: {targetSum}");
+            return;
+        }
 
         var (min, max) = hint.Value;
+        Debug.Log($"[GridManager] Hint found at range: ({min.x},{min.y}) to ({max.x},{max.y})");
+        
+        int hintCount = 0;
         for (int x = min.x; x <= max.x; x++)
             for (int y = min.y; y <= max.y; y++)
                 if (_grid[x, y] != null && _grid[x, y].IsActive)
+                {
                     _grid[x, y].ShowHint(true);
-
+                    hintCount++;
+                }
+        
+        Debug.Log($"[GridManager] Showing hint on {hintCount} apples");
         StartCoroutine(CoClearHintAfterDelay(min, max, 2f));
     }
 
