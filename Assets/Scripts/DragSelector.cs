@@ -37,6 +37,34 @@ public class DragSelector : MonoBehaviour
     private void Start()
     {
         _cam = Camera.main;
+
+        // 테마 변경 구독
+        if (ThemeManager.Instance != null)
+        {
+            ThemeManager.Instance.OnThemeChanged.AddListener(OnThemeChanged);
+            ApplyThemeColors(); // 초기 색상 적용
+        }
+    }
+
+    private void OnThemeChanged(ThemeManager.Theme theme)
+    {
+        ApplyThemeColors();
+    }
+
+    private void ApplyThemeColors()
+    {
+        if (ThemeManager.Instance == null) return;
+
+        // 기본 선택 영역 색상
+        if (_fillRenderer != null)
+            _fillRenderer.color = ThemeManager.Instance.GetColor("SelectionFill");
+
+        if (_borderRenderer != null)
+        {
+            Color borderColor = ThemeManager.Instance.GetColor("SelectionBorder");
+            _borderRenderer.startColor = borderColor;
+            _borderRenderer.endColor = borderColor;
+        }
     }
 
     /// <summary>
@@ -44,16 +72,16 @@ public class DragSelector : MonoBehaviour
     /// </summary>
     private void CreateVisuals()
     {
-        // 반투명 채우기 (고양이 눈 황금색 틴트)
+        // 반투명 채우기
         var fillGo = new GameObject("SelectionFill");
         fillGo.transform.SetParent(transform);
         _fillRenderer = fillGo.AddComponent<SpriteRenderer>();
         _fillRenderer.sprite = CreateSquareSprite();
-        _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.10f);
+        _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.15f);
         _fillRenderer.sortingOrder = 10;
         _fillRenderer.enabled = false;
 
-        // 테두리 (황금색)
+        // 테두리
         var borderGo = new GameObject("SelectionBorder");
         borderGo.transform.SetParent(transform);
         _borderRenderer = borderGo.AddComponent<LineRenderer>();
@@ -62,13 +90,12 @@ public class DragSelector : MonoBehaviour
         _borderRenderer.startWidth = 0.04f;
         _borderRenderer.endWidth = 0.04f;
         _borderRenderer.useWorldSpace = true;
-        // URP 호환 셰이더 탐색 (fallback 포함)
         var shader = Shader.Find("Universal Render Pipeline/2D/Sprite-Lit-Default")
                   ?? Shader.Find("Sprites/Default")
                   ?? Shader.Find("Hidden/Internal-Colored");
         _borderRenderer.material = new Material(shader);
-        _borderRenderer.startColor = new Color(0.95f, 0.78f, 0.10f, 0.6f);
-        _borderRenderer.endColor = new Color(0.95f, 0.78f, 0.10f, 0.6f);
+        _borderRenderer.startColor = new Color(0.95f, 0.78f, 0.10f, 0.7f);
+        _borderRenderer.endColor = new Color(0.95f, 0.78f, 0.10f, 0.7f);
         _borderRenderer.sortingOrder = 11;
         _borderRenderer.enabled = false;
 
@@ -184,31 +211,48 @@ public class DragSelector : MonoBehaviour
 
             if (_currentSum == target)
             {
-                // 성공 - 밝은 황금색 (고양이 눈이 번쩍!)
-                _sumText.color = new Color(0.95f, 0.85f, 0.10f);
-                _fillRenderer.color = new Color(0.95f, 0.85f, 0.10f, 0.25f);
-                SetBorderColor(new Color(0.95f, 0.85f, 0.10f));
+                // 성공 - 테마별 성공 색상
+                Color successColor = ThemeManager.Instance != null ?
+                    ThemeManager.Instance.GetColor("SelectionSuccess") :
+                    new Color(0.95f, 0.85f, 0.10f);
+                _sumText.color = successColor;
+                _fillRenderer.color = new Color(successColor.r, successColor.g, successColor.b, 0.25f);
+                SetBorderColor(successColor);
             }
             else if (_currentSum > target)
             {
-                // 초과 - 빨강 (화난 고양이)
-                _sumText.color = new Color(1f, 0.35f, 0.35f);
-                _fillRenderer.color = new Color(1f, 0.25f, 0.25f, 0.15f);
-                SetBorderColor(new Color(1f, 0.35f, 0.35f));
+                // 초과 - 테마별 실패 색상
+                Color failColor = ThemeManager.Instance != null ?
+                    ThemeManager.Instance.GetColor("SelectionFail") :
+                    new Color(1f, 0.35f, 0.35f);
+                _sumText.color = failColor;
+                _fillRenderer.color = new Color(failColor.r, failColor.g, failColor.b, 0.15f);
+                SetBorderColor(failColor);
             }
             else
             {
                 // 진행 중 - 부드러운 황금색
                 _sumText.color = new Color(0.95f, 0.78f, 0.10f, 0.8f);
-                _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.12f);
-                SetBorderColor(new Color(0.95f, 0.78f, 0.10f, 0.7f));
+                _fillRenderer.color = ThemeManager.Instance != null ?
+                    ThemeManager.Instance.GetColor("SelectionFill") :
+                    new Color(0.95f, 0.78f, 0.10f, 0.12f);
+                Color borderColor = ThemeManager.Instance != null ?
+                    ThemeManager.Instance.GetColor("SelectionBorder") :
+                    new Color(0.95f, 0.78f, 0.10f, 0.7f);
+                SetBorderColor(borderColor);
             }
         }
         else
         {
             _sumText.enabled = false;
-            _fillRenderer.color = new Color(0.95f, 0.78f, 0.10f, 0.08f);
-            SetBorderColor(new Color(0.95f, 0.78f, 0.10f, 0.4f));
+            _fillRenderer.color = ThemeManager.Instance != null ?
+                ThemeManager.Instance.GetColor("SelectionFill") :
+                new Color(0.95f, 0.78f, 0.10f, 0.08f);
+            Color borderColor = ThemeManager.Instance != null ?
+                ThemeManager.Instance.GetColor("SelectionBorder") :
+                new Color(0.95f, 0.78f, 0.10f, 0.4f);
+            borderColor.a *= 0.5f;
+            SetBorderColor(borderColor);
         }
     }
 

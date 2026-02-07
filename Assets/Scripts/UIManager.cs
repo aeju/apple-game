@@ -2,9 +2,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
-/// 고양이 테마 UI를 프로그래밍 방식으로 생성하고 관리합니다.
+/// 고양이 테마 UI - 밝은/다크 모드 지원
 /// 검정 고양이(노란 눈) 헌정 게임 - PAW 10
 /// </summary>
 public class UIManager : MonoBehaviour
@@ -17,14 +18,27 @@ public class UIManager : MonoBehaviour
     private GameObject _countdownPanel;
     private GameObject _resultPanel;
 
+    // 테마별로 색상 적용할 요소들
+    private List<Image> _panelBackgrounds = new List<Image>();
+    private List<Image> _barBackgrounds = new List<Image>();
+    private List<TextMeshProUGUI> _primaryTexts = new List<TextMeshProUGUI>();
+    private List<TextMeshProUGUI> _secondaryTexts = new List<TextMeshProUGUI>();
+    private List<Button> _primaryButtons = new List<Button>();
+    private List<Button> _secondaryButtons = new List<Button>();
+    private List<Button> _successButtons = new List<Button>();
+
     // HUD 요소
     private TextMeshProUGUI _scoreText;
     private TextMeshProUGUI _timerText;
+    private Slider _timerSlider;
+    private Image _timerSliderFill;
     private TextMeshProUGUI _comboText;
     private TextMeshProUGUI _hintButtonText;
     private TextMeshProUGUI _shuffleButtonText;
     private Button _hintButton;
     private Button _shuffleButton;
+    private Button _hudThemeToggleButton;
+    private TextMeshProUGUI _hudThemeToggleText;
 
     // 카운트다운
     private TextMeshProUGUI _countdownText;
@@ -40,15 +54,12 @@ public class UIManager : MonoBehaviour
 
     // 메인메뉴
     private TextMeshProUGUI _menuBestScoreText;
+    private Button _themeToggleButton;
+    private TextMeshProUGUI _themeToggleText;
 
-    // ─── 고양이 테마 색상 팔레트 ───
-    private static readonly Color CAT_BLACK = new Color(0.08f, 0.08f, 0.10f, 0.94f);
+    // 공통 색상
     private static readonly Color CAT_EYE_GOLD = new Color(0.95f, 0.78f, 0.10f);
     private static readonly Color CAT_EYE_BRIGHT = new Color(1.0f, 0.85f, 0.20f);
-    private static readonly Color BTN_PRIMARY = new Color(0.90f, 0.72f, 0.12f);
-    private static readonly Color BTN_SECONDARY = new Color(0.30f, 0.30f, 0.35f);
-    private static readonly Color BTN_SUCCESS = new Color(0.40f, 0.65f, 0.45f);
-    private static readonly Color HUD_BAR = new Color(0.06f, 0.06f, 0.08f, 0.88f);
 
     private Canvas _canvas;
 
@@ -58,9 +69,6 @@ public class UIManager : MonoBehaviour
         Instance = this;
     }
 
-    /// <summary>
-    /// UI를 초기화합니다. AppleGameSetup에서 호출됩니다.
-    /// </summary>
     public void Initialize(Canvas canvas)
     {
         _canvas = canvas;
@@ -70,6 +78,9 @@ public class UIManager : MonoBehaviour
         CreateCountdownPanel();
         CreateResultPanel();
         ShowPanel(GameState.Menu);
+
+        // 초기 테마 적용
+        ApplyTheme();
     }
 
     private void Start()
@@ -89,6 +100,78 @@ public class UIManager : MonoBehaviour
             ScoreManager.Instance.OnComboChanged.AddListener(UpdateCombo);
             ScoreManager.Instance.OnScorePopup.AddListener(SpawnFloatingScore);
         }
+
+        if (ThemeManager.Instance != null)
+        {
+            ThemeManager.Instance.OnThemeChanged.AddListener(OnThemeChanged);
+        }
+    }
+
+    // ─── 테마 전환 ───
+
+    private void OnThemeChanged(ThemeManager.Theme theme)
+    {
+        ApplyTheme();
+    }
+
+    private void ApplyTheme()
+    {
+        if (ThemeManager.Instance == null) return;
+
+        bool isLight = ThemeManager.Instance.IsLightTheme();
+
+        // 패널 배경
+        foreach (var img in _panelBackgrounds)
+            if (img != null)
+                img.color = ThemeManager.Instance.GetColor("UIPanel");
+
+        // 바 배경
+        foreach (var img in _barBackgrounds)
+            if (img != null)
+                img.color = ThemeManager.Instance.GetColor("HUDBar");
+
+        // 텍스트
+        foreach (var txt in _primaryTexts)
+            if (txt != null)
+                txt.color = ThemeManager.Instance.GetColor("TextPrimary");
+
+        foreach (var txt in _secondaryTexts)
+            if (txt != null)
+                txt.color = ThemeManager.Instance.GetColor("TextSecondary");
+
+        // 버튼
+        ApplyButtonTheme(_primaryButtons, "BtnPrimary");
+        ApplyButtonTheme(_secondaryButtons, "BtnSecondary");
+        ApplyButtonTheme(_successButtons, "BtnSuccess");
+
+        // 토글 버튼 텍스트 업데이트 (메인 메뉴 + HUD)
+        if (_themeToggleText != null)
+            _themeToggleText.text = isLight ? "☀" : "☾";
+        
+        if (_hudThemeToggleText != null)
+            _hudThemeToggleText.text = isLight ? "☀" : "☾";
+
+        // 카메라 배경 색상 변경
+        if (Camera.main != null)
+            Camera.main.backgroundColor = ThemeManager.Instance.GetColor("CameraBG");
+    }
+
+    private void ApplyButtonTheme(List<Button> buttons, string colorName)
+    {
+        Color btnColor = ThemeManager.Instance.GetColor(colorName);
+        foreach (var btn in buttons)
+        {
+            if (btn == null) continue;
+            var img = btn.GetComponent<Image>();
+            if (img != null) img.color = btnColor;
+
+            var colors = btn.colors;
+            colors.normalColor = btnColor;
+            colors.highlightedColor = Color.Lerp(btnColor, Color.white, 0.2f);
+            colors.pressedColor = Color.Lerp(btnColor, Color.black, 0.2f);
+            colors.disabledColor = Color.Lerp(btnColor, Color.gray, 0.5f);
+            btn.colors = colors;
+        }
     }
 
     // ─── 패널 전환 ───
@@ -107,40 +190,79 @@ public class UIManager : MonoBehaviour
             PopulateResult();
     }
 
-    // ─── 메인 메뉴 (고양이 마스코트) ───
+    // ─── 메인 메뉴 (테마 토글 포함) ───
 
     private void CreateMainMenuPanel()
     {
-        _mainMenuPanel = CreatePanel("MainMenuPanel", CAT_BLACK);
+        _mainMenuPanel = CreatePanel("MainMenuPanel", Color.white, true);
         var rt = _mainMenuPanel.GetComponent<RectTransform>();
         SetFullStretch(rt);
 
-        // 고양이 실루엣 마스코트 (노란 눈의 검정 고양이)
+        // 고양이 실루엣 마스코트
         CreateCatSilhouette(_mainMenuPanel.transform, new Vector2(0, 300), new Vector2(200, 200));
 
         // 타이틀
         var title = CreateTextElement(_mainMenuPanel.transform, "PAW 10",
-            72, CAT_EYE_GOLD, new Vector2(0, 150), new Vector2(800, 100));
+            72, CAT_EYE_GOLD, new Vector2(0, 150), new Vector2(800, 100), isPrimary: false);
         title.fontStyle = FontStyles.Bold;
 
         // 부제
-        CreateTextElement(_mainMenuPanel.transform, "Drag paws that sum to 10!",
-            22, new Color(1, 1, 1, 0.6f), new Vector2(0, 80), new Vector2(700, 50));
+        var subtitle = CreateTextElement(_mainMenuPanel.transform, "Drag paws that sum to 10!",
+            22, Color.gray, new Vector2(0, 80), new Vector2(700, 50), isPrimary: false);
+        _secondaryTexts.Add(subtitle);
 
-        // 고양이 장식 라인
-        CreateTextElement(_mainMenuPanel.transform, "~  =^._.^=  ~",
-            28, new Color(1, 1, 1, 0.3f), new Vector2(0, 30), new Vector2(400, 50));
+        // 고양이 장식
+        var decoration = CreateTextElement(_mainMenuPanel.transform, "~  =^._.^=  ~",
+            28, Color.gray, new Vector2(0, 30), new Vector2(400, 50), isPrimary: false);
+        _secondaryTexts.Add(decoration);
 
         // Play 버튼
-        CreateButton(_mainMenuPanel.transform, "PLAY", BTN_PRIMARY,
+        var playBtn = CreateButton(_mainMenuPanel.transform, "PLAY", Color.white,
             new Vector2(0, -50), new Vector2(320, 70), 36, () =>
             {
                 GameManager.Instance?.StartGame();
             });
+        _primaryButtons.Add(playBtn.GetComponent<Button>());
 
         // 최고기록
         _menuBestScoreText = CreateTextElement(_mainMenuPanel.transform, "Best: 0",
-            24, new Color(0.95f, 0.78f, 0.10f, 0.7f), new Vector2(0, -140), new Vector2(400, 50));
+            24, CAT_EYE_GOLD, new Vector2(0, -140), new Vector2(400, 50), isPrimary: false);
+
+        // 테마 토글 버튼 (우측 상단) - 절대 위치 사용
+        var themeBtn = new GameObject("ThemeToggle");
+        themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
+        var themeBtnRt = themeBtn.AddComponent<RectTransform>();
+        themeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
+        themeBtnRt.anchorMax = new Vector2(1, 1);
+        themeBtnRt.pivot = new Vector2(1, 1);
+        themeBtnRt.anchoredPosition = new Vector2(-20, -20); // 우측 상단에서 20px 안쪽
+        themeBtnRt.sizeDelta = new Vector2(70, 70);
+
+        var themeBtnImg = themeBtn.AddComponent<Image>();
+        themeBtnImg.color = Color.white;
+        themeBtnImg.type = Image.Type.Sliced;
+
+        var themeBtnComp = themeBtn.AddComponent<Button>();
+        var themeBtnColors = themeBtnComp.colors;
+        themeBtnColors.normalColor = Color.white;
+        themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f);
+        themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
+        themeBtnComp.colors = themeBtnColors;
+        themeBtnComp.onClick.AddListener(() => { ThemeManager.Instance?.ToggleTheme(); });
+
+        var themeBtnTextGo = new GameObject("Label");
+        themeBtnTextGo.transform.SetParent(themeBtn.transform, false);
+        var themeBtnTextRt = themeBtnTextGo.AddComponent<RectTransform>();
+        SetFullStretch(themeBtnTextRt);
+        _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
+        _themeToggleText.text = "☀";
+        _themeToggleText.fontSize = 38;
+        _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
+        _themeToggleText.alignment = TextAlignmentOptions.Center;
+        _themeToggleText.fontStyle = FontStyles.Bold;
+
+        _themeToggleButton = themeBtnComp;
+        _secondaryButtons.Add(_themeToggleButton);
     }
 
     private void UpdateMenuBestScore()
@@ -149,50 +271,95 @@ public class UIManager : MonoBehaviour
             _menuBestScoreText.text = $"Best: {ScoreManager.Instance.BestScore}";
     }
 
-    // ─── HUD (고양이 눈 색상 강조) ───
+    // ─── HUD ───
 
     private void CreateHUDPanel()
     {
-        _hudPanel = CreatePanel("HUDPanel", Color.clear);
+        _hudPanel = CreatePanel("HUDPanel", Color.clear, false);
         var rt = _hudPanel.GetComponent<RectTransform>();
         SetFullStretch(rt);
 
-        // 상단 바 배경
-        var topBar = CreatePanel("TopBar", HUD_BAR, _hudPanel.transform);
+        // 상단 바
+        var topBar = CreatePanel("TopBar", Color.white, true, _hudPanel.transform);
         var topRt = topBar.GetComponent<RectTransform>();
         topRt.anchorMin = new Vector2(0, 1);
         topRt.anchorMax = new Vector2(1, 1);
         topRt.pivot = new Vector2(0.5f, 1);
-        topRt.sizeDelta = new Vector2(0, 90);
+        topRt.sizeDelta = new Vector2(0, 100); // 슬라이더 공간 확보
         topRt.anchoredPosition = Vector2.zero;
+        _barBackgrounds.Add(topBar.GetComponent<Image>());
 
         // 점수 (좌측)
         _scoreText = CreateTextElement(topBar.transform, "0",
-            36, Color.white, new Vector2(-300, -10), new Vector2(200, 60));
+            36, Color.black, new Vector2(-300, -10), new Vector2(200, 60), isPrimary: true);
         _scoreText.alignment = TextAlignmentOptions.Left;
         _scoreText.fontStyle = FontStyles.Bold;
 
         var scoreLabel = CreateTextElement(topBar.transform, "SCORE",
-            18, new Color(0.95f, 0.78f, 0.10f, 0.6f), new Vector2(-300, -42), new Vector2(200, 30));
+            18, CAT_EYE_GOLD, new Vector2(-300, -42), new Vector2(200, 30), isPrimary: false);
         scoreLabel.alignment = TextAlignmentOptions.Left;
 
-        // 타이머 (중앙)
+        // 타이머 (중앙) - 숫자 + 슬라이더
         _timerText = CreateTextElement(topBar.transform, "2:00",
-            42, Color.white, new Vector2(0, -10), new Vector2(200, 60));
+            38, Color.black, new Vector2(0, -8), new Vector2(200, 50), isPrimary: true);
         _timerText.fontStyle = FontStyles.Bold;
         _timerText.alignment = TextAlignmentOptions.Center;
 
+        // 타이머 슬라이더 (원작 스타일)
+        var sliderGo = new GameObject("TimerSlider");
+        sliderGo.transform.SetParent(topBar.transform, false);
+        var sliderRt = sliderGo.AddComponent<RectTransform>();
+        sliderRt.anchoredPosition = new Vector2(0, -55);
+        sliderRt.sizeDelta = new Vector2(180, 12);
+
+        _timerSlider = sliderGo.AddComponent<Slider>();
+        _timerSlider.minValue = 0f;
+        _timerSlider.maxValue = 1f;
+        _timerSlider.value = 1f;
+        _timerSlider.interactable = false;
+
+        // 슬라이더 배경
+        var bgGo = new GameObject("Background");
+        bgGo.transform.SetParent(sliderGo.transform, false);
+        var bgRt = bgGo.AddComponent<RectTransform>();
+        SetFullStretch(bgRt);
+        var bgImg = bgGo.AddComponent<Image>();
+        bgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.3f);
+
+        // 슬라이더 Fill Area
+        var fillAreaGo = new GameObject("Fill Area");
+        fillAreaGo.transform.SetParent(sliderGo.transform, false);
+        var fillAreaRt = fillAreaGo.AddComponent<RectTransform>();
+        fillAreaRt.anchorMin = Vector2.zero;
+        fillAreaRt.anchorMax = Vector2.one;
+        fillAreaRt.sizeDelta = new Vector2(-4, -4);
+        fillAreaRt.anchoredPosition = Vector2.zero;
+
+        // 슬라이더 Fill
+        var fillGo = new GameObject("Fill");
+        fillGo.transform.SetParent(fillAreaGo.transform, false);
+        var fillRt = fillGo.AddComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = Vector2.one;
+        fillRt.sizeDelta = Vector2.zero;
+        fillRt.anchoredPosition = Vector2.zero;
+        _timerSliderFill = fillGo.AddComponent<Image>();
+        _timerSliderFill.color = new Color(0.4f, 0.8f, 0.5f); // 초록색 (시작)
+
+        _timerSlider.fillRect = fillRt;
+        _timerSlider.targetGraphic = _timerSliderFill;
+
         var timerLabel = CreateTextElement(topBar.transform, "TIME",
-            18, new Color(0.95f, 0.78f, 0.10f, 0.6f), new Vector2(0, -42), new Vector2(200, 30));
+            16, CAT_EYE_GOLD, new Vector2(0, -72), new Vector2(200, 25), isPrimary: false);
         timerLabel.alignment = TextAlignmentOptions.Center;
 
         // 콤보 (우측)
         _comboText = CreateTextElement(topBar.transform, "",
-            32, CAT_EYE_GOLD, new Vector2(300, -20), new Vector2(250, 60));
+            32, CAT_EYE_GOLD, new Vector2(300, -20), new Vector2(250, 60), isPrimary: false);
         _comboText.alignment = TextAlignmentOptions.Right;
 
         // 하단 버튼 바
-        var bottomBar = CreatePanel("BottomBar", Color.clear, _hudPanel.transform);
+        var bottomBar = CreatePanel("BottomBar", Color.clear, false, _hudPanel.transform);
         var botRt = bottomBar.GetComponent<RectTransform>();
         botRt.anchorMin = new Vector2(0, 0);
         botRt.anchorMax = new Vector2(1, 0);
@@ -200,23 +367,61 @@ public class UIManager : MonoBehaviour
         botRt.sizeDelta = new Vector2(0, 80);
         botRt.anchoredPosition = new Vector2(0, 10);
 
-        // 힌트 버튼 (좌측)
-        var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", BTN_SECONDARY,
+        // 힌트 버튼
+        var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", Color.white,
             new Vector2(-120, 0), new Vector2(180, 55), 22, () =>
             {
                 GameManager.Instance?.UseHint();
             });
         _hintButton = hintBtnGo.GetComponent<Button>();
         _hintButtonText = hintBtnGo.GetComponentInChildren<TextMeshProUGUI>();
+        _secondaryButtons.Add(_hintButton);
 
-        // 셔플 버튼 (우측)
-        var shuffleBtnGo = CreateButton(bottomBar.transform, "SHUFFLE (2)", BTN_SUCCESS,
+        // 셔플 버튼
+        var shuffleBtnGo = CreateButton(bottomBar.transform, "SHUFFLE (2)", Color.white,
             new Vector2(120, 0), new Vector2(180, 55), 22, () =>
             {
                 GameManager.Instance?.UseShuffle();
             });
         _shuffleButton = shuffleBtnGo.GetComponent<Button>();
         _shuffleButtonText = shuffleBtnGo.GetComponentInChildren<TextMeshProUGUI>();
+        _successButtons.Add(_shuffleButton);
+
+        // HUD 테마 토글 버튼 (우측 상단, 메인 메뉴와 동일 위치)
+        var hudThemeBtn = new GameObject("HUDThemeToggle");
+        hudThemeBtn.transform.SetParent(_hudPanel.transform, false);
+        var hudThemeBtnRt = hudThemeBtn.AddComponent<RectTransform>();
+        hudThemeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
+        hudThemeBtnRt.anchorMax = new Vector2(1, 1);
+        hudThemeBtnRt.pivot = new Vector2(1, 1);
+        hudThemeBtnRt.anchoredPosition = new Vector2(-20, -20); // 메인 메뉴와 동일 위치
+        hudThemeBtnRt.sizeDelta = new Vector2(70, 70);
+
+        var hudThemeBtnImg = hudThemeBtn.AddComponent<Image>();
+        hudThemeBtnImg.color = Color.white;
+        hudThemeBtnImg.type = Image.Type.Sliced;
+
+        var hudThemeBtnComp = hudThemeBtn.AddComponent<Button>();
+        var hudThemeBtnColors = hudThemeBtnComp.colors;
+        hudThemeBtnColors.normalColor = Color.white;
+        hudThemeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f);
+        hudThemeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f);
+        hudThemeBtnComp.colors = hudThemeBtnColors;
+        hudThemeBtnComp.onClick.AddListener(() => { ThemeManager.Instance?.ToggleTheme(); });
+
+        var hudThemeBtnTextGo = new GameObject("Label");
+        hudThemeBtnTextGo.transform.SetParent(hudThemeBtn.transform, false);
+        var hudThemeBtnTextRt = hudThemeBtnTextGo.AddComponent<RectTransform>();
+        SetFullStretch(hudThemeBtnTextRt);
+        _hudThemeToggleText = hudThemeBtnTextGo.AddComponent<TextMeshProUGUI>();
+        _hudThemeToggleText.text = "☀";
+        _hudThemeToggleText.fontSize = 38;
+        _hudThemeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
+        _hudThemeToggleText.alignment = TextAlignmentOptions.Center;
+        _hudThemeToggleText.fontStyle = FontStyles.Bold;
+
+        _hudThemeToggleButton = hudThemeBtnComp;
+        _secondaryButtons.Add(_hudThemeToggleButton);
 
         _hudPanel.SetActive(false);
     }
@@ -235,11 +440,48 @@ public class UIManager : MonoBehaviour
         int seconds = Mathf.FloorToInt(time % 60f);
         _timerText.text = $"{minutes}:{seconds:D2}";
 
-        // 30초 이하면 경고 (고양이 눈 색 깜빡임)
+        // 슬라이더 업데이트 (원작 스타일)
+        if (_timerSlider != null && GameManager.Instance != null)
+        {
+            float maxTime = GameManager.Instance.GameDuration;
+            float ratio = time / maxTime;
+            _timerSlider.value = ratio;
+
+            // 색상 변화 (초록 → 노랑 → 빨강)
+            if (_timerSliderFill != null)
+            {
+                if (ratio > 0.5f)
+                {
+                    // 초록 → 노랑
+                    float t = (ratio - 0.5f) * 2f;
+                    _timerSliderFill.color = Color.Lerp(new Color(0.95f, 0.85f, 0.3f), new Color(0.4f, 0.8f, 0.5f), t);
+                }
+                else if (ratio > 0.25f)
+                {
+                    // 노랑 → 주황
+                    float t = (ratio - 0.25f) * 4f;
+                    _timerSliderFill.color = Color.Lerp(new Color(1f, 0.65f, 0.2f), new Color(0.95f, 0.85f, 0.3f), t);
+                }
+                else
+                {
+                    // 주황 → 빨강 (+ 깜빡임)
+                    float t = ratio * 4f;
+                    Color red = new Color(1f, 0.3f, 0.3f);
+                    Color orange = new Color(1f, 0.65f, 0.2f);
+                    _timerSliderFill.color = Color.Lerp(red, orange, t);
+                    
+                    // 깜빡임 효과
+                    float pulse = 0.7f + 0.3f * Mathf.PingPong(Time.time * 3f, 1f);
+                    _timerSliderFill.color *= pulse;
+                }
+            }
+        }
+
+        // 텍스트 색상 (30초 이하 경고)
         if (time <= 30f)
             _timerText.color = Color.Lerp(new Color(1f, 0.3f, 0.3f), CAT_EYE_GOLD, Mathf.PingPong(Time.time * 2f, 1f));
         else
-            _timerText.color = Color.white;
+            _timerText.color = ThemeManager.Instance.GetColor("TextPrimary");
     }
 
     private void UpdateCombo(int combo, int maxCombo)
@@ -279,21 +521,19 @@ public class UIManager : MonoBehaviour
             _shuffleButton.interactable = remaining > 0;
     }
 
-    // ─── 카운트다운 (고양이 표정) ───
+    // ─── 카운트다운 ───
 
     private void CreateCountdownPanel()
     {
-        _countdownPanel = CreatePanel("CountdownPanel", Color.clear);
+        _countdownPanel = CreatePanel("CountdownPanel", Color.clear, false);
         SetFullStretch(_countdownPanel.GetComponent<RectTransform>());
 
-        // 고양이 표정 (숫자 위에 표시)
         _countdownCatFace = CreateTextElement(_countdownPanel.transform, "",
-            52, CAT_EYE_GOLD, new Vector2(0, 80), new Vector2(500, 80));
+            52, CAT_EYE_GOLD, new Vector2(0, 80), new Vector2(500, 80), isPrimary: false);
         _countdownCatFace.alignment = TextAlignmentOptions.Center;
 
-        // 카운트다운 숫자
         _countdownText = CreateTextElement(_countdownPanel.transform, "3",
-            120, Color.white, new Vector2(0, -30), new Vector2(300, 200));
+            120, Color.white, new Vector2(0, -30), new Vector2(300, 200), isPrimary: true);
         _countdownText.fontStyle = FontStyles.Bold;
         _countdownText.alignment = TextAlignmentOptions.Center;
 
@@ -309,12 +549,12 @@ public class UIManager : MonoBehaviour
             case 3:
                 _countdownCatFace.text = "=u.u=";
                 _countdownText.text = "3";
-                _countdownText.color = new Color(1f, 1f, 1f, 0.6f);
+                _countdownText.color = ThemeManager.Instance.GetColor("TextSecondary");
                 break;
             case 2:
                 _countdownCatFace.text = "=-.o=";
                 _countdownText.text = "2";
-                _countdownText.color = new Color(1f, 1f, 1f, 0.8f);
+                _countdownText.color = ThemeManager.Instance.GetColor("TextPrimary");
                 break;
             case 1:
                 _countdownCatFace.text = "=^o^=";
@@ -354,58 +594,53 @@ public class UIManager : MonoBehaviour
         catRt.localScale = normalScale;
     }
 
-    // ─── 결과 화면 (점수별 고양이 표정) ───
+    // ─── 결과 화면 ───
 
     private void CreateResultPanel()
     {
-        _resultPanel = CreatePanel("ResultPanel", CAT_BLACK);
+        _resultPanel = CreatePanel("ResultPanel", Color.white, true);
         SetFullStretch(_resultPanel.GetComponent<RectTransform>());
 
-        // 고양이 표정 (점수 기반으로 변경됨)
         _resultCatFace = CreateTextElement(_resultPanel.transform, "",
-            52, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80));
+            52, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
         _resultCatFace.fontStyle = FontStyles.Bold;
 
-        // 타이틀
         var title = CreateTextElement(_resultPanel.transform, "GAME OVER!",
-            48, CAT_EYE_GOLD, new Vector2(0, 250), new Vector2(600, 80));
+            48, CAT_EYE_GOLD, new Vector2(0, 250), new Vector2(600, 80), isPrimary: false);
         title.fontStyle = FontStyles.Bold;
 
-        // 점수
         _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0",
-            40, Color.white, new Vector2(0, 165), new Vector2(500, 60));
+            40, Color.black, new Vector2(0, 165), new Vector2(500, 60), isPrimary: true);
         _resultScoreText.fontStyle = FontStyles.Bold;
 
-        // 제거한 발바닥
         _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0",
-            28, new Color(1, 1, 1, 0.8f), new Vector2(0, 105), new Vector2(500, 45));
+            28, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
+        _secondaryTexts.Add(_resultApplesText);
 
-        // 최대 콤보
         _resultComboText = CreateTextElement(_resultPanel.transform, "Max Combo: 0",
-            28, new Color(1, 1, 1, 0.8f), new Vector2(0, 60), new Vector2(500, 45));
+            28, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
+        _secondaryTexts.Add(_resultComboText);
 
-        // 최고기록
         _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
-            28, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45));
+            28, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
 
-        // 신기록!
         _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!",
-            36, CAT_EYE_BRIGHT, new Vector2(0, -40), new Vector2(500, 50));
+            36, CAT_EYE_BRIGHT, new Vector2(0, -40), new Vector2(500, 50), isPrimary: false);
         _resultNewRecordText.fontStyle = FontStyles.Bold;
 
-        // 다시하기 버튼
-        CreateButton(_resultPanel.transform, "RETRY", BTN_PRIMARY,
+        var retryBtn = CreateButton(_resultPanel.transform, "RETRY", Color.white,
             new Vector2(-100, -130), new Vector2(240, 65), 26, () =>
             {
                 GameManager.Instance?.RestartGame();
             });
+        _primaryButtons.Add(retryBtn.GetComponent<Button>());
 
-        // 메뉴 버튼
-        CreateButton(_resultPanel.transform, "MENU", BTN_SECONDARY,
+        var menuBtn = CreateButton(_resultPanel.transform, "MENU", Color.white,
             new Vector2(100, -130), new Vector2(240, 65), 26, () =>
             {
                 GameManager.Instance?.ReturnToMenu();
             });
+        _secondaryButtons.Add(menuBtn.GetComponent<Button>());
 
         _resultPanel.SetActive(false);
     }
@@ -420,7 +655,6 @@ public class UIManager : MonoBehaviour
         _resultComboText.text = $"Max Combo: {sm.MaxCombo}";
         _resultBestText.text = $"Best: {sm.BestScore}";
 
-        // 점수별 고양이 표정
         if (sm.Score <= 30)
             _resultCatFace.text = "=_=   Meh...";
         else if (sm.Score <= 80)
@@ -451,7 +685,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // ─── 플로팅 점수 텍스트 ───
+    // ─── 플로팅 점수 ───
 
     private void SpawnFloatingScore(int points, Vector3 worldPos)
     {
@@ -492,7 +726,7 @@ public class UIManager : MonoBehaviour
         Destroy(go);
     }
 
-    // ─── 고양이 실루엣 마스코트 생성 ───
+    // ─── 고양이 실루엣 ───
 
     private void CreateCatSilhouette(Transform parent, Vector2 anchoredPos, Vector2 size)
     {
@@ -509,10 +743,6 @@ public class UIManager : MonoBehaviour
         img.raycastTarget = false;
     }
 
-    /// <summary>
-    /// 검정 고양이 머리 실루엣을 프로그래밍 방식으로 생성합니다.
-    /// 노란 눈, 삼각 귀, 분홍 코를 포함합니다.
-    /// </summary>
     private static Sprite GenerateCatHeadSprite(int texSize)
     {
         var tex = new Texture2D(texSize, texSize, TextureFormat.RGBA32, false);
@@ -544,28 +774,18 @@ public class UIManager : MonoBehaviour
                 float headR = s * 0.36f;
                 float headDist = Vector2.Distance(new Vector2(fx, fy), new Vector2(cx, headCy));
 
-                // 머리 원형
                 if (headDist <= headR) inHead = true;
 
-                // 왼쪽 귀 (외곽)
-                if (IsInTriangle(fx, fy,
-                    s * 0.14f, s * 0.60f, s * 0.06f, s * 0.96f, s * 0.42f, s * 0.70f))
+                if (IsInTriangle(fx, fy, s * 0.14f, s * 0.60f, s * 0.06f, s * 0.96f, s * 0.42f, s * 0.70f))
                     inHead = true;
-                // 왼쪽 귀 (내부 - 안쪽 살색)
-                if (IsInTriangle(fx, fy,
-                    s * 0.18f, s * 0.64f, s * 0.12f, s * 0.88f, s * 0.36f, s * 0.70f))
+                if (IsInTriangle(fx, fy, s * 0.18f, s * 0.64f, s * 0.12f, s * 0.88f, s * 0.36f, s * 0.70f))
                     inInnerEar = true;
 
-                // 오른쪽 귀 (외곽)
-                if (IsInTriangle(fx, fy,
-                    s * 0.86f, s * 0.60f, s * 0.94f, s * 0.96f, s * 0.58f, s * 0.70f))
+                if (IsInTriangle(fx, fy, s * 0.86f, s * 0.60f, s * 0.94f, s * 0.96f, s * 0.58f, s * 0.70f))
                     inHead = true;
-                // 오른쪽 귀 (내부 - 안쪽 살색)
-                if (IsInTriangle(fx, fy,
-                    s * 0.82f, s * 0.64f, s * 0.88f, s * 0.88f, s * 0.64f, s * 0.70f))
+                if (IsInTriangle(fx, fy, s * 0.82f, s * 0.64f, s * 0.88f, s * 0.88f, s * 0.64f, s * 0.70f))
                     inInnerEar = true;
 
-                // 왼쪽 눈 (타원형 - 황금색)
                 {
                     float ecx = s * 0.35f, ecy = s * 0.42f;
                     float erx = s * 0.07f, ery = s * 0.05f;
@@ -574,7 +794,6 @@ public class UIManager : MonoBehaviour
                     if (dx * dx + dy * dy <= 1f) inEye = true;
                 }
 
-                // 오른쪽 눈 (타원형 - 황금색)
                 {
                     float ecx = s * 0.65f, ecy = s * 0.42f;
                     float erx = s * 0.07f, ery = s * 0.05f;
@@ -583,12 +802,9 @@ public class UIManager : MonoBehaviour
                     if (dx * dx + dy * dy <= 1f) inEye = true;
                 }
 
-                // 코 (작은 역삼각형 - 분홍색)
-                if (IsInTriangle(fx, fy,
-                    cx, s * 0.33f, cx - s * 0.025f, s * 0.37f, cx + s * 0.025f, s * 0.37f))
+                if (IsInTriangle(fx, fy, cx, s * 0.33f, cx - s * 0.025f, s * 0.37f, cx + s * 0.025f, s * 0.37f))
                     inNose = true;
 
-                // 렌더링 (우선순위: 눈 > 코 > 귀 내부 > 머리)
                 if (inEye)
                     tex.SetPixel(px, py, eyeGold);
                 else if (inNose && inHead)
@@ -605,9 +821,6 @@ public class UIManager : MonoBehaviour
         return Sprite.Create(tex, new Rect(0, 0, texSize, texSize), Vector2.one * 0.5f);
     }
 
-    /// <summary>
-    /// 삼각형 내부 판정 (바리센트릭 좌표)
-    /// </summary>
     private static bool IsInTriangle(float px, float py,
         float x1, float y1, float x2, float y2, float x3, float y3)
     {
@@ -619,9 +832,9 @@ public class UIManager : MonoBehaviour
         return !(hasNeg && hasPos);
     }
 
-    // ─── UI 헬퍼 메서드 ───
+    // ─── 헬퍼 메서드 ───
 
-    private GameObject CreatePanel(string name, Color bgColor, Transform parent = null)
+    private GameObject CreatePanel(string name, Color bgColor, bool trackForTheme, Transform parent = null)
     {
         var go = new GameObject(name);
         go.transform.SetParent(parent != null ? parent : _canvas.transform, false);
@@ -632,13 +845,15 @@ public class UIManager : MonoBehaviour
         {
             var img = go.AddComponent<Image>();
             img.color = bgColor;
+            if (trackForTheme)
+                _panelBackgrounds.Add(img);
         }
 
         return go;
     }
 
     private TextMeshProUGUI CreateTextElement(Transform parent, string text,
-        float fontSize, Color color, Vector2 anchoredPos, Vector2 sizeDelta)
+        float fontSize, Color color, Vector2 anchoredPos, Vector2 sizeDelta, bool isPrimary)
     {
         var go = new GameObject("Text");
         go.transform.SetParent(parent, false);
@@ -654,6 +869,9 @@ public class UIManager : MonoBehaviour
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.enableAutoSizing = false;
         tmp.overflowMode = TextOverflowModes.Overflow;
+
+        if (isPrimary)
+            _primaryTexts.Add(tmp);
 
         return tmp;
     }

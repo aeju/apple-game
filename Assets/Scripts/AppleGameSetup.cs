@@ -87,7 +87,7 @@ public class AppleGameSetup : MonoBehaviour
 
         cam.transform.position = new Vector3(0f, 0f, -10f);
         cam.transform.rotation = Quaternion.identity;
-        cam.backgroundColor = new Color(0.04f, 0.04f, 0.06f); // 검정 고양이 테마 배경
+        cam.backgroundColor = new Color(0.96f, 0.94f, 0.91f); // 밝은 테마 기본 배경
         cam.clearFlags = CameraClearFlags.SolidColor;
     }
 
@@ -121,6 +121,13 @@ public class AppleGameSetup : MonoBehaviour
     /// </summary>
     private void SetupManagers()
     {
+        // ThemeManager를 제일 먼저 생성 (다른 매니저들이 테마를 참조할 수 있도록)
+        if (ThemeManager.Instance == null)
+        {
+            var go = new GameObject("ThemeManager");
+            go.AddComponent<ThemeManager>();
+        }
+
         if (GameManager.Instance == null)
         {
             var go = new GameObject("GameManager");
@@ -202,7 +209,7 @@ public class AppleGameSetup : MonoBehaviour
     }
 
     /// <summary>
-    /// 배경을 생성합니다.
+    /// 배경을 생성하고 테마 변경을 구독합니다.
     /// </summary>
     private void SetupBackground()
     {
@@ -221,7 +228,23 @@ public class AppleGameSetup : MonoBehaviour
 
         bgGo.transform.position = new Vector3(0f, 0f, 0.5f);
         bgGo.transform.localScale = new Vector3(gridWidth, gridHeight, 1f);
-        bgSr.color = new Color(0.08f, 0.08f, 0.12f, 0.5f); // 고양이 테마 어두운 배경
         bgSr.sortingOrder = -1;
+
+        // 초기 테마 색상 적용
+        if (ThemeManager.Instance != null)
+        {
+            bgSr.color = ThemeManager.Instance.GetColor("GridBG");
+
+            // 테마 변경 시 배경 색상도 변경
+            ThemeManager.Instance.OnThemeChanged.AddListener((theme) =>
+            {
+                if (bgSr != null)
+                    bgSr.color = ThemeManager.Instance.GetColor("GridBG");
+            });
+        }
+        else
+        {
+            bgSr.color = new Color(1.0f, 0.98f, 0.95f, 0.8f); // 밝은 테마 기본
+        }
     }
 }
