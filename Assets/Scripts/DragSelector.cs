@@ -38,8 +38,8 @@ public class DragSelector : MonoBehaviour
     {
         _cam = Camera.main;
 
-        // 테마 변경 구독
-        if (ThemeManager.Instance != null)
+        // Play 모드에서만 테마 변경 구독
+        if (Application.isPlaying && ThemeManager.Instance != null)
         {
             ThemeManager.Instance.OnThemeChanged.AddListener(OnThemeChanged);
             ApplyThemeColors(); // 초기 색상 적용

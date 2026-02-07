@@ -88,7 +88,18 @@ public class AudioManager : MonoBehaviour
     {
         if (_clipMap.TryGetValue(name, out var clip))
         {
-            _sfxSource.PlayOneShot(clip, SFXVolume);
+            // 특정 효과음의 볼륨 조정 (필요시 여기서 수정)
+            float volumeMultiplier = 1.0f;
+            
+            // 예시: countdown 효과음을 1.5배 크게
+            if (name == "countdown")
+                volumeMultiplier = 1.5f;
+            
+            // 예시: meow 효과음을 2배 크게
+            // if (name == "meow" || name == "success")
+            //     volumeMultiplier = 2.0f;
+            
+            _sfxSource.PlayOneShot(clip, SFXVolume * volumeMultiplier);
         }
     }
 

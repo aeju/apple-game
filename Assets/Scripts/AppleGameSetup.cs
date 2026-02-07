@@ -26,12 +26,80 @@ public class AppleGameSetup : MonoBehaviour
 
     private void Awake()
     {
+        Debug.Log("[AppleGameSetup] Awake called. Application.isPlaying: " + Application.isPlaying);
+
         SetupCamera();
         SetupLight2D();
         SetupManagers();
         SetupUI();
         SetupEventSystem();
         SetupBackground();
+
+        Debug.Log("[AppleGameSetup] Setup complete!");
+    }
+
+    /// <summary>
+    /// Edit 모드에서 Scene에 오브젝트를 생성합니다 (Editor에서 호출)
+    /// </summary>
+    public void GenerateInEditMode()
+    {
+        Debug.Log("[AppleGameSetup] Generating objects in Edit mode...");
+        
+        SetupCamera();
+        SetupLight2D();
+        SetupManagers();
+        SetupUI();
+        SetupEventSystem();
+        SetupBackground();
+        
+        Debug.Log("[AppleGameSetup] Generation complete!");
+    }
+
+    /// <summary>
+    /// 생성된 오브젝트를 삭제합니다 (Editor에서 호출)
+    /// </summary>
+    public void ClearGeneratedObjects()
+    {
+        Debug.Log("[AppleGameSetup] Clearing generated objects...");
+
+        // Camera
+        var cameras = FindObjectsOfType<Camera>(true);
+        foreach (var cam in cameras)
+        {
+            if (cam.name == "Main Camera")
+                DestroyImmediate(cam.gameObject);
+        }
+
+        // Light
+        var lights = FindObjectsOfType<UnityEngine.Rendering.Universal.Light2D>(true);
+        foreach (var light in lights)
+        {
+            if (light.name == "Global Light 2D")
+                DestroyImmediate(light.gameObject);
+        }
+
+        // Managers
+        string[] managerNames = { "ThemeManager", "GameManager", "GridManager", 
+                                  "ScoreManager", "DragSelector", "AudioManager" };
+        foreach (var name in managerNames)
+        {
+            var obj = GameObject.Find(name);
+            if (obj != null) DestroyImmediate(obj);
+        }
+
+        // UI
+        var canvas = GameObject.Find("Canvas");
+        if (canvas != null) DestroyImmediate(canvas);
+
+        var eventSystem = FindObjectOfType<UnityEngine.EventSystems.EventSystem>();
+        if (eventSystem != null && eventSystem.name == "EventSystem")
+            DestroyImmediate(eventSystem.gameObject);
+
+        // Background
+        var bg = GameObject.Find("GridBackground");
+        if (bg != null) DestroyImmediate(bg);
+
+        Debug.Log("[AppleGameSetup] Clear complete!");
     }
 
     /// <summary>
@@ -122,45 +190,57 @@ public class AppleGameSetup : MonoBehaviour
     private void SetupManagers()
     {
         // ThemeManager를 제일 먼저 생성 (다른 매니저들이 테마를 참조할 수 있도록)
-        if (ThemeManager.Instance == null)
+        if (GameObject.Find("ThemeManager") == null)
         {
             var go = new GameObject("ThemeManager");
-            go.AddComponent<ThemeManager>();
+            var tm = go.AddComponent<ThemeManager>();
+            if (!Application.isPlaying)
+                tm.SendMessage("Awake"); // Edit 모드에서 Awake 강제 호출
         }
 
-        if (GameManager.Instance == null)
+        if (GameObject.Find("GameManager") == null)
         {
             var go = new GameObject("GameManager");
             var gm = go.AddComponent<GameManager>();
             gm.GameDuration = GameDuration;
             gm.TargetSum = TargetSum;
+            if (!Application.isPlaying)
+                gm.SendMessage("Awake");
         }
 
-        if (GridManager.Instance == null)
+        if (GameObject.Find("GridManager") == null)
         {
             var go = new GameObject("GridManager");
             var grid = go.AddComponent<GridManager>();
             grid.Columns = Columns;
             grid.Rows = Rows;
             grid.CellSize = CellSize;
+            if (!Application.isPlaying)
+                grid.SendMessage("Awake");
         }
 
-        if (ScoreManager.Instance == null)
+        if (GameObject.Find("ScoreManager") == null)
         {
             var go = new GameObject("ScoreManager");
-            go.AddComponent<ScoreManager>();
+            var sm = go.AddComponent<ScoreManager>();
+            if (!Application.isPlaying)
+                sm.SendMessage("Awake");
         }
 
-        if (DragSelector.Instance == null)
+        if (GameObject.Find("DragSelector") == null)
         {
             var go = new GameObject("DragSelector");
-            go.AddComponent<DragSelector>();
+            var ds = go.AddComponent<DragSelector>();
+            if (!Application.isPlaying)
+                ds.SendMessage("Awake");
         }
 
-        if (AudioManager.Instance == null)
+        if (GameObject.Find("AudioManager") == null)
         {
             var go = new GameObject("AudioManager");
-            go.AddComponent<AudioManager>();
+            var am = go.AddComponent<AudioManager>();
+            if (!Application.isPlaying)
+                am.SendMessage("Awake");
         }
     }
 
@@ -169,26 +249,65 @@ public class AppleGameSetup : MonoBehaviour
     /// </summary>
     private void SetupUI()
     {
-        if (UIManager.Instance != null) return;
+        // 이미 존재하는지 확인
+        var existingCanvas = GameObject.Find("Canvas");
+        Canvas canvasComponent = null;
+        UIManager uiManagerComponent = null;
 
-        // 메인 UI 캔버스 - ScreenSpaceCamera 모드
-        var canvasGo = new GameObject("Canvas");
-        var canvas = canvasGo.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceCamera;
-        canvas.worldCamera = Camera.main;
-        canvas.planeDistance = 1f;
-        canvas.sortingOrder = 100;
+        if (existingCanvas != null)
+        {
+            Debug.Log("[AppleGameSetup] Canvas already exists in scene.");
+            canvasComponent = existingCanvas.GetComponent<Canvas>();
+            uiManagerComponent = existingCanvas.GetComponent<UIManager>();
 
-        var scaler = canvasGo.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080, 1920);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.5f;
+            if (canvasComponent != null)
+            {
+                // 카메라 재설정 (Play 모드에서 중요)
+                canvasComponent.renderMode = RenderMode.ScreenSpaceCamera;
+                canvasComponent.worldCamera = Camera.main;
+                canvasComponent.planeDistance = 1f;
+                Debug.Log("[AppleGameSetup] Canvas camera set to: " + Camera.main);
+            }
+        }
+        else
+        {
+            Debug.Log("[AppleGameSetup] Creating new Canvas...");
+            
+            // 메인 UI 캔버스 - ScreenSpaceCamera 모드
+            var canvasGo = new GameObject("Canvas");
+            canvasComponent = canvasGo.AddComponent<Canvas>();
+            canvasComponent.renderMode = RenderMode.ScreenSpaceCamera;
+            canvasComponent.worldCamera = Camera.main;
+            canvasComponent.planeDistance = 1f;
+            canvasComponent.sortingOrder = 100;
 
-        canvasGo.AddComponent<GraphicRaycaster>();
+            var scaler = canvasGo.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
 
-        var uiManager = canvasGo.AddComponent<UIManager>();
-        uiManager.Initialize(canvas);
+            canvasGo.AddComponent<GraphicRaycaster>();
+
+            uiManagerComponent = canvasGo.AddComponent<UIManager>();
+            
+            // Edit 모드에서는 Awake가 자동으로 호출되지 않으므로 수동 호출
+            if (!Application.isPlaying)
+            {
+                uiManagerComponent.SendMessage("Awake");
+            }
+        }
+
+        // UIManager 초기화 (항상 호출)
+        if (uiManagerComponent != null && canvasComponent != null)
+        {
+            Debug.Log("[AppleGameSetup] Initializing UIManager...");
+            uiManagerComponent.Initialize(canvasComponent);
+        }
+        else
+        {
+            Debug.LogError("[AppleGameSetup] Failed to get Canvas or UIManager component!");
+        }
     }
 
     /// <summary>

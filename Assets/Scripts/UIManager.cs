@@ -39,6 +39,11 @@ public class UIManager : MonoBehaviour
     private Button _shuffleButton;
     private Button _hudThemeToggleButton;
     private TextMeshProUGUI _hudThemeToggleText;
+    
+    // BGM 컨트롤
+    private Toggle _bgmToggle;
+    private Slider _bgmVolumeSlider;
+    private TextMeshProUGUI _bgmVolumeText;
 
     // 카운트다운
     private TextMeshProUGUI _countdownText;
@@ -73,18 +78,323 @@ public class UIManager : MonoBehaviour
     {
         _canvas = canvas;
 
-        CreateMainMenuPanel();
-        CreateHUDPanel();
-        CreateCountdownPanel();
-        CreateResultPanel();
+        // 이미 패널이 생성되어 있는지 확인 (Edit 모드에서 생성된 경우)
+        Transform existingMenu = canvas.transform.Find("MainMenuPanel");
+        
+        if (existingMenu != null && Application.isPlaying)
+        {
+            Debug.Log("[UIManager] Panels already exist. Re-referencing...");
+            ReReferenceExistingPanels();
+        }
+        else
+        {
+            Debug.Log("[UIManager] Creating new UI panels...");
+            CreateMainMenuPanel();
+            CreateHUDPanel();
+            CreateCountdownPanel();
+            CreateResultPanel();
+        }
+
+        Debug.Log("[UIManager] About to show Menu panel...");
         ShowPanel(GameState.Menu);
 
         // 초기 테마 적용
+        Debug.Log("[UIManager] Applying theme...");
         ApplyTheme();
+        Debug.Log("[UIManager] Initialize complete!");
+    }
+
+    /// <summary>
+    /// 이미 생성된 패널들을 다시 참조합니다 (Edit 모드에서 생성된 경우)
+    /// </summary>
+    private void ReReferenceExistingPanels()
+    {
+        // 패널 재참조
+        _mainMenuPanel = _canvas.transform.Find("MainMenuPanel")?.gameObject;
+        _hudPanel = _canvas.transform.Find("HUDPanel")?.gameObject;
+        _countdownPanel = _canvas.transform.Find("CountdownPanel")?.gameObject;
+        _resultPanel = _canvas.transform.Find("ResultPanel")?.gameObject;
+
+        if (_mainMenuPanel == null || _hudPanel == null || _countdownPanel == null || _resultPanel == null)
+        {
+            Debug.LogError("[UIManager] Some panels not found! Re-creating all panels...");
+            CreateMainMenuPanel();
+            CreateHUDPanel();
+            CreateCountdownPanel();
+            CreateResultPanel();
+            return;
+        }
+
+        // HUD 요소 재참조
+        var topBar = _hudPanel.transform.Find("TopBar");
+        if (topBar != null)
+        {
+            var texts = topBar.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var txt in texts)
+            {
+                if (txt.name == "Text")
+                {
+                    if (txt.text == "0" || txt.text.Contains("SCORE"))
+                    {
+                        _scoreText = txt.text == "0" ? txt : _scoreText;
+                    }
+                    else if (txt.text == "2:00" || txt.text.Contains(":"))
+                    {
+                        _timerText = txt;
+                    }
+                    else if (txt.text.Contains("SCORE"))
+                    {
+                        _primaryTexts.Add(txt);
+                    }
+                }
+            }
+
+            var slider = topBar.GetComponentInChildren<Slider>(true);
+            if (slider != null)
+            {
+                _timerSlider = slider;
+                _timerSliderFill = slider.fillRect?.GetComponent<Image>();
+            }
+
+            _comboText = _hudPanel.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
+        // 버튼 재참조
+        var buttons = _hudPanel.GetComponentsInChildren<Button>(true);
+        foreach (var btn in buttons)
+        {
+            var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                if (label.text.Contains("HINT"))
+                {
+                    _hintButton = btn;
+                    _hintButtonText = label;
+                }
+                else if (label.text.Contains("SHUFFLE"))
+                {
+                    _shuffleButton = btn;
+                    _shuffleButtonText = label;
+                }
+            }
+        }
+
+        // BGM 컨트롤 재참조 또는 생성
+        var bgmControl = _hudPanel.transform.Find("BGMControl");
+        if (bgmControl != null)
+        {
+            Debug.Log("[UIManager] BGMControl found, re-referencing...");
+            _bgmToggle = bgmControl.GetComponentInChildren<Toggle>(true);
+            if (_bgmToggle != null)
+            {
+                // 토글 이벤트 재연결
+                _bgmToggle.onValueChanged.RemoveAllListeners();
+                _bgmToggle.onValueChanged.AddListener((isOn) =>
+                {
+                    if (AudioManager.Instance != null)
+                    {
+                        if (isOn)
+                            AudioManager.Instance.PlayBGM();
+                        else
+                            AudioManager.Instance.StopBGM();
+                    }
+                });
+            }
+
+            var sliders = bgmControl.GetComponentsInChildren<Slider>(true);
+            foreach (var slider in sliders)
+            {
+                if (slider.name == "BGMVolumeSlider")
+                {
+                    _bgmVolumeSlider = slider;
+                    // 슬라이더 이벤트 재연결
+                    _bgmVolumeSlider.onValueChanged.RemoveAllListeners();
+                    _bgmVolumeSlider.onValueChanged.AddListener((value) =>
+                    {
+                        if (_bgmVolumeText != null)
+                            _bgmVolumeText.text = $"{Mathf.RoundToInt(value * 100)}%";
+                        
+                        if (AudioManager.Instance != null)
+                            AudioManager.Instance.SetBGMVolume(value);
+                    });
+                }
+            }
+
+            var bgmTexts = bgmControl.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var txt in bgmTexts)
+            {
+                if (txt.text.Contains("%"))
+                    _bgmVolumeText = txt;
+            }
+        }
+        else
+        {
+            // BGMControl이 없으면 생성
+            Debug.LogWarning("[UIManager] BGMControl not found! Creating new BGM control...");
+            CreateBGMControl();
+        }
+
+        // 카운트다운 요소 (GameObject 이름으로 안전하게 찾기)
+        var countdownNumber = _countdownPanel.transform.Find("CountdownNumber");
+        if (countdownNumber != null)
+        {
+            _countdownText = countdownNumber.GetComponent<TextMeshProUGUI>();
+            Debug.Log($"[UIManager] Found countdown text: {_countdownText != null}");
+        }
+        
+        var countdownCat = _countdownPanel.transform.Find("CatFace");
+        if (countdownCat != null)
+        {
+            _countdownCatFace = countdownCat.GetComponent<TextMeshProUGUI>();
+            Debug.Log($"[UIManager] Found countdown cat face: {_countdownCatFace != null}");
+        }
+        
+        // 이름으로 못 찾았으면 텍스트 내용으로 폴백
+        if (_countdownText == null || _countdownCatFace == null)
+        {
+            Debug.LogWarning("[UIManager] Countdown elements not found by name, trying fallback search...");
+            var cdTexts = _countdownPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
+            Debug.Log($"[UIManager] Found {cdTexts.Length} TextMeshProUGUI components in CountdownPanel");
+            
+            foreach (var txt in cdTexts)
+            {
+                Debug.Log($"[UIManager] Checking text: '{txt.text}' on GameObject: '{txt.gameObject.name}'");
+                
+                if (_countdownText == null && (txt.text == "3" || txt.text.Length <= 2 && !txt.text.Contains("=")))
+                    _countdownText = txt;
+                else if (_countdownCatFace == null && txt.text.Contains("="))
+                    _countdownCatFace = txt;
+            }
+            Debug.Log($"[UIManager] Fallback search - text: {_countdownText != null}, cat: {_countdownCatFace != null}");
+        }
+        
+        // 여전히 못 찾았으면 카운트다운 패널 재생성
+        if (_countdownText == null || _countdownCatFace == null)
+        {
+            Debug.LogError("[UIManager] Failed to find countdown elements! Recreating CountdownPanel...");
+            if (_countdownPanel != null)
+                Destroy(_countdownPanel);
+            CreateCountdownPanel();
+        }
+
+        // 결과 화면 요소
+        var resultTexts = _resultPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
+        foreach (var txt in resultTexts)
+        {
+            if (txt.text.Contains("Score:"))
+                _resultScoreText = txt;
+            else if (txt.text.Contains("Paws:"))
+                _resultApplesText = txt;
+            else if (txt.text.Contains("Best:"))
+                _resultBestText = txt;
+            else if (txt.text.Contains("Combo:"))
+                _resultComboText = txt;
+            else if (txt.text.Contains("RECORD"))
+                _resultNewRecordText = txt;
+            else if (txt.text.Contains("="))
+                _resultCatFace = txt;
+        }
+
+        // 메인메뉴 요소
+        var menuTexts = _mainMenuPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
+        foreach (var txt in menuTexts)
+        {
+            if (txt.text.Contains("Best:"))
+                _menuBestScoreText = txt;
+            else if (txt.text == "☀" || txt.text == "☾")
+                _themeToggleText = txt;
+        }
+
+        // 메인메뉴 버튼 재연결 (중요!)
+        var menuButtons = _mainMenuPanel.GetComponentsInChildren<Button>(true);
+        Debug.Log($"[UIManager] Found {menuButtons.Length} buttons in MainMenu");
+        
+        foreach (var btn in menuButtons)
+        {
+            var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                Debug.Log($"[UIManager] Button found with label: {label.text}");
+                
+                if (label.text == "PLAY")
+                {
+                    // PLAY 버튼 이벤트 재연결
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() =>
+                    {
+                        Debug.Log("[UIManager] PLAY button clicked!");
+                        GameManager.Instance?.StartGame();
+                    });
+                    Debug.Log("[UIManager] PLAY button event reconnected!");
+                }
+                else if (label.text == "☀" || label.text == "☾")
+                {
+                    _themeToggleButton = btn;
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() =>
+                    {
+                        Debug.Log("[UIManager] Theme toggle clicked!");
+                        ThemeManager.Instance?.ToggleTheme();
+                    });
+                }
+            }
+        }
+
+        // HUD 버튼 재연결
+        var hudButtons2 = _hudPanel.GetComponentsInChildren<Button>(true);
+        foreach (var btn in hudButtons2)
+        {
+            var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                if (label.text.Contains("HINT"))
+                {
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.UseHint(); });
+                }
+                else if (label.text.Contains("SHUFFLE"))
+                {
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
+                }
+                else if (label.text == "☀" || label.text == "☾")
+                {
+                    _hudThemeToggleButton = btn;
+                    _hudThemeToggleText = label;
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { ThemeManager.Instance?.ToggleTheme(); });
+                }
+            }
+        }
+
+        // 결과 화면 버튼 재연결
+        var resultButtons = _resultPanel.GetComponentsInChildren<Button>(true);
+        foreach (var btn in resultButtons)
+        {
+            var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (label != null)
+            {
+                if (label.text == "RETRY")
+                {
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.RestartGame(); });
+                }
+                else if (label.text == "MENU")
+                {
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.ReturnToMenu(); });
+                }
+            }
+        }
+
+        Debug.Log("[UIManager] Re-referenced all UI elements and reconnected button events!");
     }
 
     private void Start()
     {
+        // Play 모드에서만 이벤트 구독
+        if (!Application.isPlaying) return;
+
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnStateChanged.AddListener(ShowPanel);
@@ -116,9 +426,14 @@ public class UIManager : MonoBehaviour
 
     private void ApplyTheme()
     {
-        if (ThemeManager.Instance == null) return;
+        if (ThemeManager.Instance == null)
+        {
+            Debug.LogWarning("[UIManager] ThemeManager.Instance is null! Cannot apply theme.");
+            return;
+        }
 
         bool isLight = ThemeManager.Instance.IsLightTheme();
+        Debug.Log($"[UIManager] Applying theme: {(isLight ? "Light" : "Dark")}");
 
         // 패널 배경
         foreach (var img in _panelBackgrounds)
@@ -178,10 +493,15 @@ public class UIManager : MonoBehaviour
 
     private void ShowPanel(GameState state)
     {
-        _mainMenuPanel.SetActive(state == GameState.Menu);
-        _hudPanel.SetActive(state == GameState.Playing || state == GameState.Countdown);
-        _countdownPanel.SetActive(state == GameState.Countdown);
-        _resultPanel.SetActive(state == GameState.GameOver);
+        Debug.Log($"[UIManager] ShowPanel called with state: {state}");
+        Debug.Log($"[UIManager] Panel null checks - Menu:{_mainMenuPanel == null}, HUD:{_hudPanel == null}, Countdown:{_countdownPanel == null}, Result:{_resultPanel == null}");
+
+        if (_mainMenuPanel != null) _mainMenuPanel.SetActive(state == GameState.Menu);
+        if (_hudPanel != null) _hudPanel.SetActive(state == GameState.Playing || state == GameState.Countdown);
+        if (_countdownPanel != null) _countdownPanel.SetActive(state == GameState.Countdown);
+        if (_resultPanel != null) _resultPanel.SetActive(state == GameState.GameOver);
+
+        Debug.Log($"[UIManager] MainMenu active: {_mainMenuPanel?.activeSelf}");
 
         if (state == GameState.Menu)
             UpdateMenuBestScore();
@@ -423,7 +743,172 @@ public class UIManager : MonoBehaviour
         _hudThemeToggleButton = hudThemeBtnComp;
         _secondaryButtons.Add(_hudThemeToggleButton);
 
+        // BGM 컨트롤 생성
+        CreateBGMControl();
+
         _hudPanel.SetActive(false);
+    }
+
+    private void CreateBGMControl()
+    {
+        if (_hudPanel == null)
+        {
+            Debug.LogError("[UIManager] Cannot create BGM control - HUDPanel is null!");
+            return;
+        }
+
+        // BGM 컨트롤 패널 (좌측 하단)
+        var bgmPanel = CreatePanel("BGMControl", Color.clear, false, _hudPanel.transform);
+        var bgmPanelRt = bgmPanel.GetComponent<RectTransform>();
+        bgmPanelRt.anchorMin = new Vector2(0, 0);
+        bgmPanelRt.anchorMax = new Vector2(0, 0);
+        bgmPanelRt.pivot = new Vector2(0, 0);
+        bgmPanelRt.anchoredPosition = new Vector2(20, 100); // 버튼 위쪽
+        bgmPanelRt.sizeDelta = new Vector2(200, 80);
+
+        // BGM 토글
+        var toggleGo = new GameObject("BGMToggle");
+        toggleGo.transform.SetParent(bgmPanel.transform, false);
+        var toggleRt = toggleGo.AddComponent<RectTransform>();
+        toggleRt.anchoredPosition = new Vector2(0, 45);
+        toggleRt.sizeDelta = new Vector2(180, 25);
+
+        _bgmToggle = toggleGo.AddComponent<Toggle>();
+        _bgmToggle.isOn = true; // 기본값: BGM ON
+
+        // 토글 배경
+        var toggleBgGo = new GameObject("Background");
+        toggleBgGo.transform.SetParent(toggleGo.transform, false);
+        var toggleBgRt = toggleBgGo.AddComponent<RectTransform>();
+        SetFullStretch(toggleBgRt);
+        var toggleBgImg = toggleBgGo.AddComponent<Image>();
+        toggleBgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.5f);
+
+        // 체크마크
+        var checkmarkGo = new GameObject("Checkmark");
+        checkmarkGo.transform.SetParent(toggleBgGo.transform, false);
+        var checkmarkRt = checkmarkGo.AddComponent<RectTransform>();
+        checkmarkRt.anchorMin = new Vector2(0, 0.5f);
+        checkmarkRt.anchorMax = new Vector2(0, 0.5f);
+        checkmarkRt.pivot = new Vector2(0, 0.5f);
+        checkmarkRt.anchoredPosition = new Vector2(5, 0);
+        checkmarkRt.sizeDelta = new Vector2(18, 18);
+        var checkmarkImg = checkmarkGo.AddComponent<Image>();
+        checkmarkImg.color = CAT_EYE_GOLD;
+
+        _bgmToggle.graphic = checkmarkImg;
+        _bgmToggle.targetGraphic = toggleBgImg;
+
+        // 토글 라벨
+        var toggleLabelGo = new GameObject("Label");
+        toggleLabelGo.transform.SetParent(toggleGo.transform, false);
+        var toggleLabelRt = toggleLabelGo.AddComponent<RectTransform>();
+        toggleLabelRt.anchorMin = new Vector2(0, 0.5f);
+        toggleLabelRt.anchorMax = new Vector2(1, 0.5f);
+        toggleLabelRt.pivot = new Vector2(0, 0.5f);
+        toggleLabelRt.anchoredPosition = new Vector2(30, 0);
+        toggleLabelRt.sizeDelta = new Vector2(-30, 25);
+        var toggleLabel = toggleLabelGo.AddComponent<TextMeshProUGUI>();
+        toggleLabel.text = "BGM";
+        toggleLabel.fontSize = 18;
+        toggleLabel.fontStyle = FontStyles.Bold;
+        toggleLabel.alignment = TextAlignmentOptions.Left;
+        _primaryTexts.Add(toggleLabel);
+
+        // 토글 이벤트
+        _bgmToggle.onValueChanged.AddListener((isOn) =>
+        {
+            if (AudioManager.Instance != null)
+            {
+                if (isOn)
+                    AudioManager.Instance.PlayBGM();
+                else
+                    AudioManager.Instance.StopBGM();
+            }
+        });
+
+        // BGM 볼륨 슬라이더
+        var volumeSliderGo = new GameObject("BGMVolumeSlider");
+        volumeSliderGo.transform.SetParent(bgmPanel.transform, false);
+        var volumeSliderRt = volumeSliderGo.AddComponent<RectTransform>();
+        volumeSliderRt.anchoredPosition = new Vector2(0, 10);
+        volumeSliderRt.sizeDelta = new Vector2(130, 20);
+
+        _bgmVolumeSlider = volumeSliderGo.AddComponent<Slider>();
+        _bgmVolumeSlider.minValue = 0f;
+        _bgmVolumeSlider.maxValue = 1f;
+        _bgmVolumeSlider.value = 0.5f; // 기본값
+        _bgmVolumeSlider.interactable = true;
+
+        // 슬라이더 배경
+        var volBgGo = new GameObject("Background");
+        volBgGo.transform.SetParent(volumeSliderGo.transform, false);
+        var volBgRt = volBgGo.AddComponent<RectTransform>();
+        SetFullStretch(volBgRt);
+        var volBgImg = volBgGo.AddComponent<Image>();
+        volBgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.5f);
+
+        // 슬라이더 Fill Area
+        var volFillAreaGo = new GameObject("Fill Area");
+        volFillAreaGo.transform.SetParent(volumeSliderGo.transform, false);
+        var volFillAreaRt = volFillAreaGo.AddComponent<RectTransform>();
+        volFillAreaRt.anchorMin = Vector2.zero;
+        volFillAreaRt.anchorMax = Vector2.one;
+        volFillAreaRt.sizeDelta = new Vector2(-4, -4);
+        volFillAreaRt.anchoredPosition = Vector2.zero;
+
+        // 슬라이더 Fill
+        var volFillGo = new GameObject("Fill");
+        volFillGo.transform.SetParent(volFillAreaGo.transform, false);
+        var volFillRt = volFillGo.AddComponent<RectTransform>();
+        volFillRt.anchorMin = Vector2.zero;
+        volFillRt.anchorMax = Vector2.one;
+        volFillRt.sizeDelta = Vector2.zero;
+        volFillRt.anchoredPosition = Vector2.zero;
+        var volFillImg = volFillGo.AddComponent<Image>();
+        volFillImg.color = CAT_EYE_GOLD;
+
+        _bgmVolumeSlider.fillRect = volFillRt;
+        _bgmVolumeSlider.targetGraphic = volFillImg;
+
+        // 슬라이더 Handle
+        var handleAreaGo = new GameObject("Handle Slide Area");
+        handleAreaGo.transform.SetParent(volumeSliderGo.transform, false);
+        var handleAreaRt = handleAreaGo.AddComponent<RectTransform>();
+        SetFullStretch(handleAreaRt);
+
+        var handleGo = new GameObject("Handle");
+        handleGo.transform.SetParent(handleAreaGo.transform, false);
+        var handleRt = handleGo.AddComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(16, 16);
+        var handleImg = handleGo.AddComponent<Image>();
+        handleImg.color = Color.white;
+
+        _bgmVolumeSlider.handleRect = handleRt;
+
+        // 볼륨 텍스트
+        var volumeTextGo = new GameObject("VolumeText");
+        volumeTextGo.transform.SetParent(bgmPanel.transform, false);
+        var volumeTextRt = volumeTextGo.AddComponent<RectTransform>();
+        volumeTextRt.anchoredPosition = new Vector2(150, 10);
+        volumeTextRt.sizeDelta = new Vector2(40, 20);
+        _bgmVolumeText = volumeTextGo.AddComponent<TextMeshProUGUI>();
+        _bgmVolumeText.text = "50%";
+        _bgmVolumeText.fontSize = 16;
+        _bgmVolumeText.alignment = TextAlignmentOptions.Left;
+        _primaryTexts.Add(_bgmVolumeText);
+
+        // 슬라이더 이벤트
+        _bgmVolumeSlider.onValueChanged.AddListener((value) =>
+        {
+            if (_bgmVolumeText != null)
+                _bgmVolumeText.text = $"{Mathf.RoundToInt(value * 100)}%";
+            
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.SetBGMVolume(value);
+        });
+        
+        Debug.Log("[UIManager] BGM Control created successfully!");
     }
 
     private void UpdateScore(int score)
@@ -531,18 +1016,32 @@ public class UIManager : MonoBehaviour
         _countdownCatFace = CreateTextElement(_countdownPanel.transform, "",
             52, CAT_EYE_GOLD, new Vector2(0, 80), new Vector2(500, 80), isPrimary: false);
         _countdownCatFace.alignment = TextAlignmentOptions.Center;
+        _countdownCatFace.gameObject.name = "CatFace"; // 재참조를 위한 명확한 이름
 
         _countdownText = CreateTextElement(_countdownPanel.transform, "3",
             120, Color.white, new Vector2(0, -30), new Vector2(300, 200), isPrimary: true);
         _countdownText.fontStyle = FontStyles.Bold;
         _countdownText.alignment = TextAlignmentOptions.Center;
+        _countdownText.gameObject.name = "CountdownNumber"; // 재참조를 위한 명확한 이름
 
         _countdownPanel.SetActive(false);
     }
 
     private void UpdateCountdown(int value)
     {
-        if (_countdownText == null) return;
+        Debug.Log($"[UIManager] UpdateCountdown called with value: {value}");
+        
+        if (_countdownText == null)
+        {
+            Debug.LogError("[UIManager] UpdateCountdown failed: _countdownText is null!");
+            return;
+        }
+        
+        if (_countdownCatFace == null)
+        {
+            Debug.LogError("[UIManager] UpdateCountdown failed: _countdownCatFace is null!");
+            return;
+        }
 
         switch (value)
         {

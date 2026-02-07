@@ -3,12 +3,50 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
+/// 숫자 라벨 색상 모드
+/// </summary>
+public enum LabelColorMode
+{
+    Auto,       // 자동 색상 (밝은 패드=어두운 글자, 어두운 패드=밝은 글자)
+    Uniform,    // 모든 숫자에 같은 색상 적용
+    Individual  // 각 숫자마다 다른 색상 적용
+}
+
+/// <summary>
 /// 고양이 발바닥(肉球) 오브젝트. 숫자, 시각 상태, 애니메이션을 관리합니다.
 /// 검정 고양이 헌정 게임 - 발바닥 모양 스프라이트를 사용합니다.
+/// Inspector에서 외부 이미지를 할당할 수 있습니다.
 /// </summary>
 [RequireComponent(typeof(SpriteRenderer))]
 public class Apple : MonoBehaviour
 {
+    [Header("External Sprites (Optional - 할당 시 프로그래밍 생성 무시)")]
+    [Tooltip("숫자 1~9에 해당하는 스프라이트를 순서대로 할당하세요 (256x256 PNG 권장)")]
+    [SerializeField] private Sprite[] customSprites = new Sprite[9];
+    
+    [Header("Number Label Settings")]
+    [Tooltip("숫자 라벨 표시 여부 (체크 해제 시 숫자 숨김)")]
+    [SerializeField] private bool showNumberLabel = true;
+    
+    [Tooltip("숫자 라벨에 사용할 TMP 폰트 (null이면 기본 폰트 사용)")]
+    [SerializeField] private TMP_FontAsset customFont = null;
+    
+    [Tooltip("숫자 라벨 폰트 크기 (기본값: 5.5)")]
+    [SerializeField] private float labelFontSize = 5.5f;
+    
+    [Tooltip("숫자 라벨 Y축 위치 오프셋 (기본값: -0.11)")]
+    [SerializeField] private float labelYOffset = -0.11f;
+    
+    [Header("Label Color Settings")]
+    [Tooltip("색상 모드: Auto(자동), Uniform(같은색), Individual(각각 다른색)")]
+    [SerializeField] private LabelColorMode labelColorMode = LabelColorMode.Auto;
+    
+    [Tooltip("모든 숫자에 적용할 단일 색상 (Uniform 모드에서만 사용)")]
+    [SerializeField] private Color uniformLabelColor = Color.white;
+    
+    [Tooltip("숫자 1~9의 개별 텍스트 색상 (Individual 모드에서만 사용)")]
+    [SerializeField] private Color[] individualLabelColors = new Color[9];
+
     public int Number { get; private set; }
     public int GridX { get; set; }
     public int GridY { get; set; }
@@ -18,8 +56,10 @@ public class Apple : MonoBehaviour
     private TextMeshPro _label;
     private Color _baseColor;
     private Vector3 _normalScale;
+    private bool _isUsingCustomSprite = false; // 커스텀 이미지 사용 여부
 
     private static Sprite[] _pawSprites = new Sprite[9];
+    private static Sprite[] _customSpritesCache = null;
 
     // 숫자별 색상 (1~9) - 고양이 테마 따뜻한 톤
     public static readonly Color[] NumberColors =
@@ -50,14 +90,31 @@ public class Apple : MonoBehaviour
     };
 
     /// <summary>
-    /// 숫자별로 다른 고양이 발바닥 스프라이트를 생성(캐싱)합니다.
+    /// 숫자별로 다른 스프라이트를 반환합니다.
+    /// 외부 이미지가 할당되어 있으면 그것을 사용하고, 없으면 프로그래밍 방식으로 생성합니다.
     /// 1-4: 작은 귀여운 발바닥 (밝은 패드)
     /// 5: 친구 고양이 발바닥 (검정 패드, 특별 디자인!)
     /// 6-9: 어른 고양이 발바닥 (진한 패드)
     /// </summary>
-    public static Sprite GetPawSprite(int number)
+    public Sprite GetSprite(int number)
     {
         int idx = number - 1;
+
+        // 외부 이미지가 할당되어 있으면 사용
+        if (customSprites != null && customSprites.Length > idx && customSprites[idx] != null)
+        {
+            // Static 캐시에 저장 (다른 Apple 오브젝트도 사용)
+            if (_customSpritesCache == null)
+                _customSpritesCache = new Sprite[9];
+            _customSpritesCache[idx] = customSprites[idx];
+            return customSprites[idx];
+        }
+
+        // 캐시된 커스텀 스프라이트 확인
+        if (_customSpritesCache != null && _customSpritesCache[idx] != null)
+            return _customSpritesCache[idx];
+
+        // 프로그래밍 방식으로 생성된 스프라이트 확인
         if (_pawSprites[idx] != null) return _pawSprites[idx];
 
         int size = 128;
@@ -207,43 +264,118 @@ public class Apple : MonoBehaviour
 
         _sr = GetComponent<SpriteRenderer>();
         if (_sr == null) _sr = gameObject.AddComponent<SpriteRenderer>();
-        _sr.sprite = GetPawSprite(number);
+        _sr.sprite = GetSprite(number);
         _sr.sortingOrder = 1;
-        _baseColor = NumberColors[number - 1];
+        
+        // 커스텀 이미지 사용 여부 확인
+        int idx = number - 1;
+        _isUsingCustomSprite = (customSprites != null && customSprites.Length > idx && customSprites[idx] != null) ||
+                               (_customSpritesCache != null && _customSpritesCache[idx] != null);
+        
+        // 커스텀 이미지는 원본 색상 유지, 프로그래밍 발바닥은 색상 적용
+        _baseColor = _isUsingCustomSprite ? Color.white : NumberColors[number - 1];
         _sr.color = _baseColor;
 
+        // 스프라이트 크기 정규화 (외부 이미지 크기가 다를 경우 대응)
+        if (_sr.sprite != null)
+        {
+            // 목표: 모든 스프라이트가 동일한 월드 크기를 가지도록
+            float targetWorldSize = 0.45f; // 목표 크기 (그리드 셀의 90%)
+            
+            // 스프라이트의 실제 크기 계산 (bounds)
+            Bounds spriteBounds = _sr.sprite.bounds;
+            float maxDimension = Mathf.Max(spriteBounds.size.x, spriteBounds.size.y);
+            
+            // 정규화된 스케일 계산
+            float normalizedScale = targetWorldSize / maxDimension;
+            _normalScale = Vector3.one * normalizedScale;
+            transform.localScale = _normalScale;
+            
+            Debug.Log($"[Apple {number}] Sprite bounds: {spriteBounds.size}, scale: {normalizedScale}");
+        }
+        else
+        {
+            _normalScale = Vector3.one * 0.45f;
+            transform.localScale = _normalScale;
+        }
+
         // 숫자 텍스트 (메인 패드 중앙에 박혀있게)
-        var child = transform.Find("Label");
-        if (child != null)
+        if (showNumberLabel)
         {
-            _label = child.GetComponent<TextMeshPro>();
+            var child = transform.Find("Label");
+            if (child != null)
+            {
+                _label = child.GetComponent<TextMeshPro>();
+            }
+            else
+            {
+                var go = new GameObject("Label");
+                go.transform.SetParent(transform, false);
+                go.transform.localPosition = new Vector3(0f, labelYOffset, -0.01f);
+                _label = go.AddComponent<TextMeshPro>();
+            }
+
+            // 커스텀 폰트 적용
+            if (customFont != null)
+            {
+                _label.font = customFont;
+            }
+
+            _label.text = number.ToString();
+            _label.fontSize = labelFontSize;
+            _label.fontStyle = FontStyles.Bold;
+            _label.alignment = TextAlignmentOptions.Center;
+            
+            // 숫자 색상 결정 (모드에 따라)
+            _label.color = GetLabelColor(number);
+            
+            _label.sortingOrder = 2;
+            _label.rectTransform.sizeDelta = Vector2.one;
         }
         else
         {
-            var go = new GameObject("Label");
-            go.transform.SetParent(transform, false);
-            go.transform.localPosition = new Vector3(0f, -0.11f, -0.01f);
-            _label = go.AddComponent<TextMeshPro>();
+            // 숫자 라벨 숨김 옵션 활성화 시 기존 라벨 제거
+            var child = transform.Find("Label");
+            if (child != null)
+            {
+                Destroy(child.gameObject);
+            }
+            _label = null;
         }
+    }
 
-        _label.text = number.ToString();
-        _label.fontSize = 5.5f;
-        _label.fontStyle = FontStyles.Bold;
-        _label.alignment = TextAlignmentOptions.Center;
+    /// <summary>
+    /// 숫자 라벨의 색상을 결정합니다.
+    /// </summary>
+    private Color GetLabelColor(int number)
+    {
+        int colorIdx = number - 1;
         
-        // 숫자 색상: 패드가 밝으면 어두운 글자, 어두우면 밝은 글자
-        if (number <= 4)
-            _label.color = new Color(0.25f, 0.25f, 0.30f, 0.9f); // 밝은 패드에는 어두운 글자
-        else if (number == 5)
-            _label.color = new Color(0.95f, 0.78f, 0.10f); // 친구 고양이는 황금 눈 색!
-        else
-            _label.color = new Color(0.95f, 0.95f, 1.0f, 0.95f); // 어두운 패드에는 밝은 글자
-        
-        _label.sortingOrder = 2;
-        _label.rectTransform.sizeDelta = Vector2.one;
-
-        _normalScale = Vector3.one * 0.45f;
-        transform.localScale = _normalScale;
+        switch (labelColorMode)
+        {
+            case LabelColorMode.Uniform:
+                // 모든 숫자에 같은 색상
+                return uniformLabelColor;
+            
+            case LabelColorMode.Individual:
+                // 각 숫자마다 다른 색상
+                if (individualLabelColors != null && individualLabelColors.Length > colorIdx && individualLabelColors[colorIdx].a > 0.01f)
+                {
+                    return individualLabelColors[colorIdx];
+                }
+                // 색상이 없으면 Auto로 폴백
+                goto case LabelColorMode.Auto;
+            
+            case LabelColorMode.Auto:
+            default:
+                // 자동 색상: 패드가 밝으면 어두운 글자, 어두우면 밝은 글자
+                if (number <= 4)
+                    return new Color(0.25f, 0.25f, 0.30f, 0.9f); // 밝은 패드에는 어두운 글자
+                else if (number == 5)
+                    return new Color(0.95f, 0.78f, 0.10f); // 친구 고양이는 황금 눈 색!
+                else
+                    return new Color(0.95f, 0.95f, 1.0f, 0.95f); // 어두운 패드에는 밝은 글자
+        }
     }
 
     /// <summary>
@@ -252,8 +384,17 @@ public class Apple : MonoBehaviour
     public void Highlight(bool on)
     {
         if (!IsActive) return;
-        _sr.color = on ? Color.Lerp(_baseColor, new Color(1f, 0.9f, 0.6f), 0.4f) : _baseColor;
-        transform.localScale = on ? Vector3.one * 0.50f : _normalScale;
+        
+        // 커스텀 이미지는 색상 변경하지 않고 스케일만 변경
+        if (_isUsingCustomSprite)
+        {
+            transform.localScale = on ? _normalScale * 1.11f : _normalScale;
+        }
+        else
+        {
+            _sr.color = on ? Color.Lerp(_baseColor, new Color(1f, 0.9f, 0.6f), 0.4f) : _baseColor;
+            transform.localScale = on ? Vector3.one * 0.50f : _normalScale;
+        }
     }
 
     /// <summary>
@@ -262,7 +403,12 @@ public class Apple : MonoBehaviour
     public void ShowHint(bool on)
     {
         if (!IsActive) return;
-        _sr.color = on ? Color.Lerp(_baseColor, new Color(0.95f, 0.78f, 0.10f), 0.55f) : _baseColor;
+        
+        // 커스텀 이미지는 색상 변경하지 않음
+        if (!_isUsingCustomSprite)
+        {
+            _sr.color = on ? Color.Lerp(_baseColor, new Color(0.95f, 0.78f, 0.10f), 0.55f) : _baseColor;
+        }
     }
 
     /// <summary>

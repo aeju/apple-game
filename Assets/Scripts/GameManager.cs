@@ -64,20 +64,36 @@ public class GameManager : MonoBehaviour
         OnHintsChanged?.Invoke(HintsLeft);
         OnShufflesChanged?.Invoke(ShufflesLeft);
 
-        // 카운트다운
+        // 카운트다운 상태로 전환 (그리드는 보이지만 터치 불가)
         SetState(GameState.Countdown);
+        Debug.Log("[GameManager] Countdown started");
+        
+        // 4초 카운트다운 효과음 재생
+        AudioManager.Instance?.PlaySFX("countdown");
 
-        for (int i = 3; i >= 1; i--)
-        {
-            OnCountdownTick?.Invoke(i);
-            yield return new WaitForSeconds(1f);
-        }
+        // 4초 카운트다운: 0초 시작
+        yield return new WaitForSeconds(1f); // 0~1초
+        Debug.Log("[GameManager] Countdown: 3");
+        OnCountdownTick?.Invoke(3); // "3" 표시
 
-        OnCountdownTick?.Invoke(0); // GO!
-        yield return new WaitForSeconds(0.5f);
+        yield return new WaitForSeconds(1f); // 1~2초
+        Debug.Log("[GameManager] Countdown: 2");
+        OnCountdownTick?.Invoke(2); // "2" 표시
 
-        // 게임 시작
+        yield return new WaitForSeconds(1f); // 2~3초
+        Debug.Log("[GameManager] Countdown: 1");
+        OnCountdownTick?.Invoke(1); // "1" 표시
+
+        yield return new WaitForSeconds(1f); // 3~4초
+        Debug.Log("[GameManager] Countdown: GO!");
+        OnCountdownTick?.Invoke(0); // "GO!" 표시
+
+        // 게임 시작 (터치 가능!)
         SetState(GameState.Playing);
+        Debug.Log("[GameManager] Game started - Playing state");
+        
+        // BGM 재생
+        AudioManager.Instance?.PlayBGM();
     }
 
     private void Update()

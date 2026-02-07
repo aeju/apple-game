@@ -14,6 +14,33 @@ public class GridManager : MonoBehaviour
     public int Rows = 17;
     public float CellSize = 0.5f;
 
+    [Header("Custom Sprites (Optional - 양털공/커스텀 이미지)")]
+    [Tooltip("숫자 1~9에 해당하는 스프라이트를 순서대로 할당하세요.\n비어있으면 프로그래밍 방식으로 발바닥을 생성합니다.\n(256x256 PNG 권장)")]
+    [SerializeField] private Sprite[] numberSprites = new Sprite[9];
+    
+    [Header("Number Label Settings")]
+    [Tooltip("숫자 라벨 표시 여부 (체크 해제 시 숫자 숨김)")]
+    [SerializeField] private bool showNumberLabel = true;
+    
+    [Tooltip("숫자 라벨에 사용할 TMP 폰트 (null이면 기본 폰트 사용)")]
+    [SerializeField] private TMPro.TMP_FontAsset customFont = null;
+    
+    [Tooltip("숫자 라벨 폰트 크기 (기본값: 5.5)")]
+    [SerializeField] private float labelFontSize = 5.5f;
+    
+    [Tooltip("숫자 라벨 Y축 위치 오프셋 (기본값: -0.11)")]
+    [SerializeField] private float labelYOffset = -0.11f;
+    
+    [Header("Label Color Settings")]
+    [Tooltip("색상 모드: Auto(자동), Uniform(같은색), Individual(각각 다른색)")]
+    [SerializeField] private LabelColorMode labelColorMode = LabelColorMode.Auto;
+    
+    [Tooltip("모든 숫자에 적용할 단일 색상 (Uniform 모드에서만 사용)")]
+    [SerializeField] private Color uniformLabelColor = Color.white;
+    
+    [Tooltip("숫자 1~9의 개별 텍스트 색상 (Individual 모드에서만 사용)")]
+    [SerializeField] private Color[] individualLabelColors = new Color[9];
+
     private Apple[,] _grid;
     private Transform _container;
     private Vector3 _gridOrigin;
@@ -67,6 +94,59 @@ public class GridManager : MonoBehaviour
                 go.transform.position = GridToWorld(x, y);
 
                 var apple = go.AddComponent<Apple>();
+                
+                // Reflection으로 private 필드 설정 (Inspector에서 설정된 경우)
+                var bindingFlags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                
+                // 커스텀 스프라이트 할당
+                if (numberSprites != null && numberSprites.Length == 9)
+                {
+                    var field = typeof(Apple).GetField("customSprites", bindingFlags);
+                    if (field != null)
+                        field.SetValue(apple, numberSprites);
+                }
+                
+                // 숫자 라벨 표시 여부 설정
+                var showLabelField = typeof(Apple).GetField("showNumberLabel", bindingFlags);
+                if (showLabelField != null)
+                    showLabelField.SetValue(apple, showNumberLabel);
+                
+                // TMP 폰트 설정 할당
+                if (customFont != null)
+                {
+                    var fontField = typeof(Apple).GetField("customFont", bindingFlags);
+                    if (fontField != null)
+                        fontField.SetValue(apple, customFont);
+                }
+                
+                // 폰트 크기 설정
+                var fontSizeField = typeof(Apple).GetField("labelFontSize", bindingFlags);
+                if (fontSizeField != null)
+                    fontSizeField.SetValue(apple, labelFontSize);
+                
+                // Y 오프셋 설정
+                var offsetField = typeof(Apple).GetField("labelYOffset", bindingFlags);
+                if (offsetField != null)
+                    offsetField.SetValue(apple, labelYOffset);
+                
+                // 라벨 색상 모드 설정
+                var colorModeField = typeof(Apple).GetField("labelColorMode", bindingFlags);
+                if (colorModeField != null)
+                    colorModeField.SetValue(apple, labelColorMode);
+                
+                // 단일 색상 설정 (Uniform 모드)
+                var uniformColorField = typeof(Apple).GetField("uniformLabelColor", bindingFlags);
+                if (uniformColorField != null)
+                    uniformColorField.SetValue(apple, uniformLabelColor);
+                
+                // 개별 색상 설정 (Individual 모드)
+                if (individualLabelColors != null && individualLabelColors.Length == 9)
+                {
+                    var individualColorsField = typeof(Apple).GetField("individualLabelColors", bindingFlags);
+                    if (individualColorsField != null)
+                        individualColorsField.SetValue(apple, individualLabelColors);
+                }
+                
                 int num = GenerateNumber();
                 apple.Init(num, x, y);
 
