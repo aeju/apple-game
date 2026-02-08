@@ -126,13 +126,32 @@ AudioManager에 AudioClip을 할당하면 사운드가 재생됩니다:
    - `Countdown Clip`: 카운트다운
    - `Game Over Clip`: 게임 종료
 
-## 랭킹 시스템 (Firebase)
+## 랭킹 시스템 (Firebase + 로컬)
 
 ### 현재 상태
 - ✅ UI 구현 완료 (메인 메뉴 RANKING 버튼, 리더보드 패널)
 - ✅ 닉네임 시스템 완료 (LocalStorage 저장)
 - ✅ 자동 점수 제출 (게임 오버 시)
-- ⚠️ Firebase SDK 미설치 (플레이스홀더 데이터로 작동)
+- ✅ 로컬 랭킹 시스템 (PlayerPrefs, Firebase 없이 작동)
+- ✅ Firebase 코드 완성 (SDK 설치 시 바로 작동)
+
+### 랭킹 시스템 선택
+
+**옵션 1: 로컬 랭킹만 사용 (현재 기본)**
+- Firebase 설정 불필요
+- 각 사용자의 브라우저에만 저장
+- 바로 작동
+
+**옵션 2: Firebase 온라인 랭킹 (Vercel 배포용) ⭐ 권장**
+- 전 세계 플레이어와 랭킹 공유
+- 실시간 글로벌 리더보드
+- WebGL 빌드 → Vercel 배포
+- 📋 **[Firebase 웹 앱 설정 가이드 보기](FIREBASE_WEB_SETUP.md)** ← **Vercel 사용 시 이것!**
+
+**옵션 3: Firebase 온라인 랭킹 (Unity SDK)**
+- PC/모바일 네이티브 빌드용
+- Firebase Unity SDK 설치 필요
+- 📋 **[Firebase Unity SDK 가이드 보기](FIREBASE_SETUP.md)**
 
 ### Firebase 연동 방법
 

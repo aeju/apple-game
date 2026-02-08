@@ -123,15 +123,21 @@ public class UIManager : MonoBehaviour
         if (PlayerPrefs.HasKey("PlayerNickname"))
         {
             _currentNickname = PlayerPrefs.GetString("PlayerNickname");
-            Debug.Log($"[UIManager] Nickname loaded from PlayerPrefs: {_currentNickname}");
+            Debug.Log($"[UIManager] ✅ Nickname loaded from PlayerPrefs: '{_currentNickname}'");
         }
         else
         {
             // 랜덤 4자리 숫자로 Guest_XXXX 생성
             int randomNum = Random.Range(1000, 9999);
             _currentNickname = $"Guest_{randomNum}";
-            Debug.Log($"[UIManager] New nickname generated: {_currentNickname}");
+            PlayerPrefs.SetString("PlayerNickname", _currentNickname);
+            PlayerPrefs.Save();
+            Debug.Log($"[UIManager] ✅ New nickname generated and saved: '{_currentNickname}'");
         }
+        
+        // 로드 후 검증
+        string verified = PlayerPrefs.GetString("PlayerNickname", "ERROR");
+        Debug.Log($"[UIManager] 🔍 PlayerPrefs verification after load: '{verified}'");
     }
     
     /// <summary>
@@ -245,6 +251,27 @@ public class UIManager : MonoBehaviour
                 Destroy(_leaderboardPanel);
                 CreateLeaderboardPanel();
             }
+            else
+            {
+                // CLOSE 버튼 재연결
+                var leaderboardButtons = _leaderboardPanel.GetComponentsInChildren<Button>(true);
+                foreach (var btn in leaderboardButtons)
+                {
+                    var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (btnText != null && btnText.text == "CLOSE")
+                    {
+                        btn.onClick.RemoveAllListeners();
+                        btn.onClick.AddListener(() =>
+                        {
+                            PlayButtonSound();
+                            Debug.Log("[UIManager] 🚪 CLOSE button clicked!");
+                            HideLeaderboard();
+                        });
+                        Debug.Log("[UIManager] ✅ CLOSE button event reconnected!");
+                        break;
+                    }
+                }
+            }
         }
 
         // HUD 요소 재참조
@@ -262,20 +289,26 @@ public class UIManager : MonoBehaviour
                     if (rt != null && rt.anchoredPosition.x < -100)
                     {
                         _scoreText = txt;
-                        Debug.Log($"[UIManager] Found _scoreText: {txt.text} at position {rt.anchoredPosition}");
+                        // ⭐ 점수는 항상 검정색 (다크모드에서도)
+                        _scoreText.color = new Color(0.17f, 0.17f, 0.18f);
+                        Debug.Log($"[UIManager] Found _scoreText: {txt.text} at position {rt.anchoredPosition}, color set to BLACK");
                     }
                 }
                 // 시간 형식 (2:00 등) → Timer
                 else if (txt.name == "Text" && txt.text.Contains(":"))
                 {
                     _timerText = txt;
-                    Debug.Log($"[UIManager] Found _timerText: {txt.text}");
+                    // ⭐ 타이머는 항상 검정색 (다크모드에서도)
+                    _timerText.color = new Color(0.17f, 0.17f, 0.18f);
+                    Debug.Log($"[UIManager] Found _timerText: {txt.text}, color set to BLACK");
                 }
                 // SCORE 라벨
                 else if (txt.text.Contains("SCORE"))
                 {
                     _scoreLabelText = txt;
-                    Debug.Log($"[UIManager] Found _scoreLabelText: {txt.text}");
+                    // ⭐ SCORE 라벨도 항상 검정색
+                    _scoreLabelText.color = new Color(0.17f, 0.17f, 0.18f);
+                    Debug.Log($"[UIManager] Found _scoreLabelText: {txt.text}, color set to BLACK");
                 }
             }
 
@@ -694,10 +727,13 @@ public class UIManager : MonoBehaviour
                     // 폰트 크기 적용
                     label.fontSize = menuButtonFontSize;
                 }
-                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
+                else if (label.text == "DAY" || label.text == "NIGHT")
                 {
                     _themeToggleButton = btn;
                     _themeToggleText = label;
+                    
+                    // ⭐ 이모지가 아닌 텍스트로 강제 변경
+                    label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
                     
                     // 텍스트 크기 조정 (3배)
                     label.fontSize = 15;
@@ -728,6 +764,49 @@ public class UIManager : MonoBehaviour
                     }
                 }
             }
+        }
+        
+        // ⭐ 테마 토글 버튼이 없으면 생성 (메인 메뉴)
+        if (_themeToggleButton == null)
+        {
+            Debug.Log("[UIManager] Theme toggle button not found in MainMenu, creating...");
+            
+            var themeBtn = new GameObject("ThemeToggle");
+            themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
+            var themeBtnRt = themeBtn.AddComponent<RectTransform>();
+            themeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
+            themeBtnRt.anchorMax = new Vector2(1, 1);
+            themeBtnRt.pivot = new Vector2(1, 1);
+            themeBtnRt.anchoredPosition = new Vector2(-20, -20); // 우측 상단에서 20px 안쪽
+            themeBtnRt.sizeDelta = new Vector2(120, 50);
+
+            var themeBtnImg = themeBtn.AddComponent<Image>();
+            themeBtnImg.color = new Color(1f, 1f, 1f, 0f); // 투명
+            themeBtnImg.type = Image.Type.Sliced;
+
+            var themeBtnComp = themeBtn.AddComponent<Button>();
+            var themeBtnColors = themeBtnComp.colors;
+            themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f); // 투명
+            themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f); // 살짝 보임
+            themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f); // 눌렀을 때만 보임
+            themeBtnComp.colors = themeBtnColors;
+            themeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+
+            var themeBtnTextGo = new GameObject("Label");
+            themeBtnTextGo.transform.SetParent(themeBtn.transform, false);
+            var themeBtnTextRt = themeBtnTextGo.AddComponent<RectTransform>();
+            SetFullStretch(themeBtnTextRt);
+            _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
+            _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+            _themeToggleText.fontSize = 15;
+            _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
+            _themeToggleText.alignment = TextAlignmentOptions.Center;
+            _themeToggleText.fontStyle = FontStyles.Bold;
+
+            _themeToggleButton = themeBtnComp;
+            _secondaryButtons.Add(_themeToggleButton);
+            
+            Debug.Log("[UIManager] ✅ Theme toggle button created in MainMenu!");
         }
         
         // PLAY 버튼이 없으면 생성
@@ -811,10 +890,13 @@ public class UIManager : MonoBehaviour
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
                 }
-                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
+                else if (label.text == "DAY" || label.text == "NIGHT")
                 {
                     _hudThemeToggleButton = btn;
                     _hudThemeToggleText = label;
+                    
+                    // ⭐ 이모지가 아닌 텍스트로 강제 변경
+                    label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
                     
                     // 텍스트 크기 조정 (3배)
                     label.fontSize = 15;
@@ -974,6 +1056,62 @@ public class UIManager : MonoBehaviour
         ApplyButtonTheme(_primaryButtons, "BtnPrimary");
         ApplyButtonTheme(_secondaryButtons, "BtnSecondary");
         ApplyButtonTheme(_successButtons, "BtnSuccess");
+        
+        // ⭐ PLAY/RANKING 버튼은 고정 색상 유지 (테마 영향 안 받음)
+        var menuButtons = _mainMenuPanel?.GetComponentsInChildren<Button>(true);
+        if (menuButtons != null)
+        {
+            foreach (var btn in menuButtons)
+            {
+                var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (label != null)
+                {
+                    if (label.text == "PLAY")
+                    {
+                        ResetButtonColor(btn, DEEP_PINK);
+                        Debug.Log("[UIManager] 🎨 PLAY button color restored to DEEP_PINK");
+                    }
+                    else if (label.text == "RANKING")
+                    {
+                        ResetButtonColor(btn, DEEP_BLUE);
+                        Debug.Log("[UIManager] 🎨 RANKING button color restored to DEEP_BLUE");
+                    }
+                }
+            }
+        }
+        
+        // ⭐ 플레이 화면 버튼들도 고정 색상 유지 (HINT, SHUFFLE, RESTART, HOME)
+        var hudButtons = _hudPanel?.GetComponentsInChildren<Button>(true);
+        if (hudButtons != null)
+        {
+            foreach (var btn in hudButtons)
+            {
+                var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (label != null)
+                {
+                    if (label.text.Contains("HINT"))
+                    {
+                        ResetButtonColor(btn, LIGHT_SKY);
+                        Debug.Log("[UIManager] 🎨 HINT button color restored to LIGHT_SKY");
+                    }
+                    else if (label.text.Contains("SHUFFLE"))
+                    {
+                        ResetButtonColor(btn, LIGHT_PINK);
+                        Debug.Log("[UIManager] 🎨 SHUFFLE button color restored to LIGHT_PINK");
+                    }
+                    else if (label.text == "RESTART")
+                    {
+                        ResetButtonColor(btn, CAT_NOSE_PINK);
+                        Debug.Log("[UIManager] 🎨 RESTART button color restored to CAT_NOSE_PINK");
+                    }
+                    else if (label.text == "HOME")
+                    {
+                        ResetButtonColor(btn, CAT_PAW_CREAM);
+                        Debug.Log("[UIManager] 🎨 HOME button color restored to CAT_PAW_CREAM");
+                    }
+                }
+            }
+        }
 
         // 토글 버튼 텍스트 업데이트 (메인 메뉴 + HUD)
         if (_themeToggleText != null)
@@ -1137,18 +1275,21 @@ public class UIManager : MonoBehaviour
         _barBackgrounds.Add(topBar.GetComponent<Image>());
 
         // 점수 (좌측)
+        // ⭐ 처음부터 검정색 (다크모드에서도 검정)
         _scoreText = CreateTextElement(topBar.transform, "0",
-            36, Color.black, new Vector2(-300, -10), new Vector2(200, 60), isPrimary: true);
+            36, new Color(0.17f, 0.17f, 0.18f), new Vector2(-300, -10), new Vector2(200, 60), isPrimary: true);
         _scoreText.alignment = TextAlignmentOptions.Left;
         _scoreText.fontStyle = FontStyles.Bold;
 
-        var scoreLabel = CreateTextElement(topBar.transform, "SCORE",
-            18, CAT_EYE_GOLD, new Vector2(-300, -42), new Vector2(200, 30), isPrimary: false);
-        scoreLabel.alignment = TextAlignmentOptions.Left;
+        // ⭐ SCORE 라벨도 처음부터 검정색 (다크모드에서도 검정)
+        _scoreLabelText = CreateTextElement(topBar.transform, "SCORE",
+            18, new Color(0.17f, 0.17f, 0.18f), new Vector2(-300, -42), new Vector2(200, 30), isPrimary: false);
+        _scoreLabelText.alignment = TextAlignmentOptions.Left;
 
         // 타이머 (중앙) - 숫자 + 슬라이더
+        // ⭐ 처음부터 검정색 (다크모드에서도 검정)
         _timerText = CreateTextElement(topBar.transform, "2:00",
-            38, Color.black, new Vector2(0, -8), new Vector2(200, 50), isPrimary: true);
+            38, new Color(0.17f, 0.17f, 0.18f), new Vector2(0, -8), new Vector2(200, 50), isPrimary: true);
         _timerText.fontStyle = FontStyles.Bold;
         _timerText.alignment = TextAlignmentOptions.Center;
 
@@ -1755,10 +1896,18 @@ public class UIManager : MonoBehaviour
         if (isNewRecord)
             StartCoroutine(CoPulseNewRecord());
         
+        // ⭐ 닉네임을 PlayerPrefs에서 다시 로드 (저장된 값 반영)
+        if (PlayerPrefs.HasKey("PlayerNickname"))
+        {
+            _currentNickname = PlayerPrefs.GetString("PlayerNickname");
+            Debug.Log($"[UIManager] ✅ Nickname reloaded from PlayerPrefs in PopulateResult: '{_currentNickname}'");
+        }
+        
         // 닉네임 입력 필드 업데이트
         if (_nicknameInputField != null)
         {
             _nicknameInputField.text = _currentNickname;
+            Debug.Log($"[UIManager] ✅ Nickname input field set to: '{_nicknameInputField.text}'");
         }
     }
 
