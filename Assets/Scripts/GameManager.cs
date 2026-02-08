@@ -117,18 +117,33 @@ public class GameManager : MonoBehaviour
     public void EndGame()
     {
         if (State == GameState.GameOver) return;
+        
+        // BGM 정지
+        AudioManager.Instance?.StopBGM();
+        
         SetState(GameState.GameOver);
         ScoreManager.Instance?.SaveBestScore();
         
-        // Firebase에 점수 제출
-        if (FirebaseManager.Instance != null && ScoreManager.Instance != null && UIManager.Instance != null)
+        // 점수 제출 (로컬 + Firebase)
+        if (ScoreManager.Instance != null && UIManager.Instance != null)
         {
             string nickname = UIManager.Instance.GetNickname();
             int score = ScoreManager.Instance.Score;
             int combo = ScoreManager.Instance.MaxCombo;
             
-            FirebaseManager.Instance.SubmitScore(nickname, score, combo);
-            Debug.Log($"[GameManager] Score submitted to leaderboard: {nickname} - {score}");
+            // 로컬 랭킹에 제출 (항상)
+            if (LocalLeaderboardManager.Instance != null)
+            {
+                LocalLeaderboardManager.Instance.SubmitScore(nickname, score, combo);
+                Debug.Log($"[GameManager] Score submitted to local leaderboard: {nickname} - {score}");
+            }
+            
+            // Firebase에도 제출 (있으면)
+            if (FirebaseManager.Instance != null)
+            {
+                FirebaseManager.Instance.SubmitScore(nickname, score, combo);
+                Debug.Log($"[GameManager] Score submitted to Firebase: {nickname} - {score}");
+            }
         }
     }
 
@@ -139,7 +154,13 @@ public class GameManager : MonoBehaviour
     {
         StopAllCoroutines();
         GridManager.Instance?.ClearGrid();
+        
+        // BGM 및 모든 효과음 정지
+        AudioManager.Instance?.StopBGM();
+        AudioManager.Instance?.StopAllSFX();
+        
         SetState(GameState.Menu);
+        Debug.Log("[GameManager] Returned to menu, BGM stopped");
     }
 
     /// <summary>
@@ -148,6 +169,11 @@ public class GameManager : MonoBehaviour
     public void RestartGame()
     {
         StopAllCoroutines();
+        
+        // 기존 BGM과 효과음 정지
+        AudioManager.Instance?.StopBGM();
+        AudioManager.Instance?.StopAllSFX();
+        
         StartGame();
     }
 

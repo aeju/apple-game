@@ -476,38 +476,48 @@ public class UIManager : MonoBehaviour
                 _resultComboText = txt;
             else if (txt.text.Contains("RECORD"))
                 _resultNewRecordText = txt;
-            else if (txt.text.Contains("="))
+            else if (txt.text.Contains("=^") || txt.text.Contains("Meh"))
                 _resultCatFace = txt;
         }
         
-        // 닉네임 입력 필드 재참조
-        _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
-        if (_nicknameInputField != null)
+        // 필수 요소가 없으면 결과 패널 재생성
+        if (_resultScoreText == null || _resultCatFace == null || _resultNewRecordText == null)
         {
-            _nicknameInputField.text = _currentNickname;
-            
-            // 변경 버튼 재연결
-            var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
-            foreach (var btn in nicknameButtons)
-            {
-                var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnText != null && btnText.text == "SAVE")
-                {
-                    _nicknameChangeButton = btn;
-                    btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(OnNicknameChangeClicked);
-                    break;
-                }
-            }
+            Debug.LogWarning("[UIManager] Result panel elements missing, recreating result panel...");
+            Destroy(_resultPanel);
+            CreateResultPanel();
         }
         else
         {
-            // 닉네임 입력 필드가 없으면 생성
-            Debug.LogWarning("[UIManager] Nickname input not found, creating...");
-            var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
-            if (nicknameContainer != null)
-                Destroy(nicknameContainer.gameObject);
-            CreateNicknameInput(_resultPanel.transform);
+            // 닉네임 입력 필드 재참조
+            _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
+            if (_nicknameInputField != null)
+            {
+                _nicknameInputField.text = _currentNickname;
+                
+                // 변경 버튼 재연결
+                var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
+                foreach (var btn in nicknameButtons)
+                {
+                    var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (btnText != null && btnText.text == "SAVE")
+                    {
+                        _nicknameChangeButton = btn;
+                        btn.onClick.RemoveAllListeners();
+                        btn.onClick.AddListener(OnNicknameChangeClicked);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                // 닉네임 입력 필드가 없으면 생성
+                Debug.LogWarning("[UIManager] Nickname input not found, creating...");
+                var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
+                if (nicknameContainer != null)
+                    Destroy(nicknameContainer.gameObject);
+                CreateNicknameInput(_resultPanel.transform);
+            }
         }
 
         // 메인메뉴 요소
@@ -1473,7 +1483,20 @@ public class UIManager : MonoBehaviour
     private void PopulateResult()
     {
         var sm = ScoreManager.Instance;
-        if (sm == null) return;
+        if (sm == null) 
+        {
+            Debug.LogError("[UIManager] ScoreManager is null!");
+            return;
+        }
+
+        // Null 체크
+        if (_resultScoreText == null || _resultApplesText == null || 
+            _resultComboText == null || _resultBestText == null || 
+            _resultCatFace == null || _resultNewRecordText == null)
+        {
+            Debug.LogError("[UIManager] Result UI elements are null! Re-referencing...");
+            return;
+        }
 
         _resultScoreText.text = $"Score: {sm.Score}";
         _resultApplesText.text = $"Paws: {sm.ApplesRemoved}";
@@ -1572,18 +1595,52 @@ public class UIManager : MonoBehaviour
             _leaderboardPanel.SetActive(true);
             _mainMenuPanel?.SetActive(false);
             
-            // Firebase에서 랭킹 불러오기
+            // Firebase 랭킹 우선 시도
             if (FirebaseManager.Instance != null)
             {
+                Debug.Log("[UIManager] Loading Firebase leaderboard...");
                 FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
+                
+                // 로딩 중 메시지 표시
+                ShowLoadingMessage();
+            }
+            else if (LocalLeaderboardManager.Instance != null)
+            {
+                // Firebase 없으면 로컬 랭킹 표시
+                var localEntries = LocalLeaderboardManager.Instance.GetTopEntries(10);
+                if (localEntries != null && localEntries.Count > 0)
+                {
+                    Debug.Log($"[UIManager] Showing local leaderboard ({localEntries.Count} entries)");
+                    DisplayLeaderboard(localEntries);
+                }
+                else
+                {
+                    Debug.LogWarning("[UIManager] No local leaderboard entries");
+                    DisplayLeaderboard(new List<LeaderboardEntry>());
+                }
             }
             else
             {
-                // Firebase 없으면 로컬 데이터로 테스트
-                Debug.LogWarning("[UIManager] Firebase not initialized, showing placeholder data");
-                ShowPlaceholderLeaderboard();
+                // 둘 다 없으면 빈 랭킹
+                Debug.LogWarning("[UIManager] No leaderboard manager found");
+                DisplayLeaderboard(new List<LeaderboardEntry>());
             }
         }
+    }
+    
+    private void ShowLoadingMessage()
+    {
+        // 기존 엔트리 삭제
+        foreach (Transform child in _leaderboardEntriesContainer)
+        {
+            Destroy(child.gameObject);
+        }
+        
+        var loadingMsg = CreateTextElement(_leaderboardEntriesContainer, 
+            "Loading...",
+            32, CAT_EYE_GOLD, new Vector2(0, -100), new Vector2(550, 100), isPrimary: false);
+        loadingMsg.alignment = TextAlignmentOptions.Center;
+        loadingMsg.fontStyle = FontStyles.Bold;
     }
 
     public void HideLeaderboard()
@@ -1608,6 +1665,19 @@ public class UIManager : MonoBehaviour
             Destroy(child.gameObject);
         }
 
+        // 엔트리가 없으면 메시지 표시
+        if (entries == null || entries.Count == 0)
+        {
+            var emptyMsg = CreateTextElement(_leaderboardEntriesContainer, 
+                "No records yet!\nPlay to set your first score!",
+                28, Color.gray, new Vector2(0, -100), new Vector2(550, 200), isPrimary: false);
+            emptyMsg.alignment = TextAlignmentOptions.Center;
+            
+            var containerRt = _leaderboardEntriesContainer.GetComponent<RectTransform>();
+            containerRt.sizeDelta = new Vector2(580, 500);
+            return;
+        }
+
         float yOffset = 0f;
         int rank = 1;
 
@@ -1619,8 +1689,8 @@ public class UIManager : MonoBehaviour
         }
 
         // 컨테이너 높이 조정
-        var containerRt = _leaderboardEntriesContainer.GetComponent<RectTransform>();
-        containerRt.sizeDelta = new Vector2(580, Mathf.Max(500, -yOffset + 50));
+        var containerRt2 = _leaderboardEntriesContainer.GetComponent<RectTransform>();
+        containerRt2.sizeDelta = new Vector2(580, Mathf.Max(500, -yOffset + 50));
     }
 
     private void CreateLeaderboardEntry(int rank, string nickname, int score, float yOffset)

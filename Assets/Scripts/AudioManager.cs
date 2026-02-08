@@ -133,4 +133,15 @@ public class AudioManager : MonoBehaviour
         SFXVolume = Mathf.Clamp01(vol);
         _sfxSource.volume = SFXVolume;
     }
+
+    /// <summary>
+    /// 모든 효과음을 정지합니다.
+    /// </summary>
+    public void StopAllSFX()
+    {
+        if (_sfxSource != null)
+        {
+            _sfxSource.Stop();
+        }
+    }
 }

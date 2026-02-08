@@ -149,9 +149,24 @@ public class AppleGameSetup : MonoBehaviour
         // 카메라 설정 - 모든 것을 원점(0,0)에 맞춤
         cam.orthographic = true;
 
-        // 그리드 전체가 보이도록 ortho size 계산
-        float gridHeight = (Rows - 1) * CellSize; // 8.0
-        cam.orthographicSize = gridHeight * 0.5f + 1.5f; // 5.5 (상하 여백 포함)
+        // 그리드 전체가 보이도록 ortho size 계산 (화면 비율에 따라 동적 조정)
+        float gridWidth = (Columns - 1) * CellSize;  // 4.5 (10칸 × 0.5)
+        float gridHeight = (Rows - 1) * CellSize;    // 8.0 (17칸 × 0.5)
+        
+        float screenAspect = (float)Screen.width / (float)Screen.height;
+        float gridAspect = gridWidth / gridHeight;
+        
+        // 화면 비율에 따라 카메라 크기 조정
+        if (screenAspect > gridAspect)
+        {
+            // 화면이 더 넓음 (가로 모드) - 세로를 기준으로
+            cam.orthographicSize = gridHeight * 0.5f + 2.0f; // 상하 여백 포함
+        }
+        else
+        {
+            // 화면이 더 좁음 (세로 모드, 모바일) - 가로를 기준으로
+            cam.orthographicSize = (gridWidth * 0.5f + 1.0f) / screenAspect; // 좌우 여백 최소화
+        }
 
         cam.transform.position = new Vector3(0f, 0f, -10f);
         cam.transform.rotation = Quaternion.identity;
@@ -249,6 +264,14 @@ public class AppleGameSetup : MonoBehaviour
             var fm = go.AddComponent<FirebaseManager>();
             if (!Application.isPlaying)
                 fm.SendMessage("Awake");
+        }
+
+        if (GameObject.Find("LocalLeaderboardManager") == null)
+        {
+            var go = new GameObject("LocalLeaderboardManager");
+            var llm = go.AddComponent<LocalLeaderboardManager>();
+            if (!Application.isPlaying)
+                llm.SendMessage("Awake");
         }
     }
 
