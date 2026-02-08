@@ -131,19 +131,29 @@ public class GameManager : MonoBehaviour
             int score = ScoreManager.Instance.Score;
             int combo = ScoreManager.Instance.MaxCombo;
             
+            Debug.Log($"[GameManager] Preparing to submit score: {nickname} - {score} (combo: {combo})");
+            
             // 로컬 랭킹에 제출 (항상)
             if (LocalLeaderboardManager.Instance != null)
             {
                 LocalLeaderboardManager.Instance.SubmitScore(nickname, score, combo);
-                Debug.Log($"[GameManager] Score submitted to local leaderboard: {nickname} - {score}");
+                Debug.Log($"[GameManager] ✅ Score submitted to local leaderboard");
+            }
+            else
+            {
+                Debug.LogError("[GameManager] ❌ LocalLeaderboardManager.Instance is NULL!");
             }
             
             // Firebase에도 제출 (있으면)
             if (FirebaseManager.Instance != null)
             {
                 FirebaseManager.Instance.SubmitScore(nickname, score, combo);
-                Debug.Log($"[GameManager] Score submitted to Firebase: {nickname} - {score}");
+                Debug.Log($"[GameManager] Score submitted to Firebase (may fail if not initialized)");
             }
+        }
+        else
+        {
+            Debug.LogError("[GameManager] Cannot submit score - ScoreManager or UIManager is null!");
         }
     }
 

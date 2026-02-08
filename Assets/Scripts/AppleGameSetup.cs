@@ -298,6 +298,17 @@ public class AppleGameSetup : MonoBehaviour
                 canvasComponent.worldCamera = Camera.main;
                 canvasComponent.planeDistance = 1f;
                 Debug.Log("[AppleGameSetup] Canvas camera set to: " + Camera.main);
+                
+                // CanvasScaler 설정 업데이트
+                var scaler = existingCanvas.GetComponent<CanvasScaler>();
+                if (scaler != null)
+                {
+                    scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                    scaler.referenceResolution = new Vector2(1080, 1920);
+                    scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+                    scaler.matchWidthOrHeight = 0f; // 가로 기준 (모바일에서 여백 최소화)
+                    Debug.Log("[AppleGameSetup] CanvasScaler updated: matchWidthOrHeight = 0");
+                }
             }
         }
         else
@@ -316,7 +327,7 @@ public class AppleGameSetup : MonoBehaviour
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.matchWidthOrHeight = 0f; // 가로 기준 (모바일에서 여백 최소화)
 
             canvasGo.AddComponent<GraphicRaycaster>();
 

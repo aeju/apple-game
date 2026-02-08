@@ -53,7 +53,9 @@ public class LocalLeaderboardManager : MonoBehaviour
     /// </summary>
     public List<LeaderboardEntry> GetTopEntries(int count = 10)
     {
-        return _leaderboard.Take(count).ToList();
+        var result = _leaderboard.Take(count).ToList();
+        Debug.Log($"[LocalLeaderboard] GetTopEntries called - returning {result.Count} entries (total: {_leaderboard.Count})");
+        return result;
     }
 
     /// <summary>

@@ -58,6 +58,8 @@ public class Apple : MonoBehaviour
     private Vector3 _normalScale;
     private bool _isUsingCustomSprite = false; // 커스텀 이미지 사용 여부
     private Coroutine _hintCoroutine = null; // 힌트 애니메이션 코루틴
+    private GameObject _outlineObject = null; // 힌트 효과용 외곽선 오브젝트
+    private SpriteRenderer _outlineSR = null; // 외곽선 SpriteRenderer
 
     private static Sprite[] _pawSprites = new Sprite[9];
     private static Sprite[] _customSpritesCache = null;
@@ -399,7 +401,7 @@ public class Apple : MonoBehaviour
     }
 
     /// <summary>
-    /// 힌트 하이라이트를 설정합니다. (고양이 눈 색상 글로우)
+    /// 힌트 하이라이트를 설정합니다. (고양이 눈 색상 글로우 + 외곽선)
     /// </summary>
     public void ShowHint(bool on)
     {
@@ -414,11 +416,17 @@ public class Apple : MonoBehaviour
         
         if (on)
         {
+            // 외곽선 오브젝트 생성
+            CreateOutline();
+            
             // 펄스 애니메이션 시작
             _hintCoroutine = StartCoroutine(CoHintPulse());
         }
         else
         {
+            // 외곽선 제거
+            DestroyOutline();
+            
             // 원래 상태로 복원
             transform.localScale = _normalScale;
             _sr.color = _baseColor;
@@ -426,7 +434,46 @@ public class Apple : MonoBehaviour
     }
     
     /// <summary>
-    /// 힌트 펄스 애니메이션 (크기 + 발광)
+    /// 힌트 외곽선 오브젝트 생성
+    /// </summary>
+    private void CreateOutline()
+    {
+        if (_outlineObject != null) return; // 이미 존재하면 무시
+        
+        _outlineObject = new GameObject("HintOutline");
+        _outlineObject.transform.SetParent(transform, false);
+        _outlineObject.transform.localPosition = Vector3.zero;
+        _outlineObject.transform.localRotation = Quaternion.identity;
+        
+        _outlineSR = _outlineObject.AddComponent<SpriteRenderer>();
+        _outlineSR.sprite = _sr.sprite; // 동일한 sprite 사용
+        _outlineSR.sortingOrder = _sr.sortingOrder - 1; // 본체보다 뒤에 렌더링
+        
+        // 외곽선 색상 (검정색)
+        Color outlineColor = new Color(0f, 0f, 0f, 0.8f);
+        _outlineSR.color = outlineColor;
+        
+        // 약간 더 크게 (외곽선 효과 - 매우 얇게)
+        _outlineObject.transform.localScale = Vector3.one * 1.0375f;
+        
+        Debug.Log($"[Apple {Number}] Hint outline created!");
+    }
+    
+    /// <summary>
+    /// 힌트 외곽선 오브젝트 제거
+    /// </summary>
+    private void DestroyOutline()
+    {
+        if (_outlineObject != null)
+        {
+            Destroy(_outlineObject);
+            _outlineObject = null;
+            _outlineSR = null;
+        }
+    }
+    
+    /// <summary>
+    /// 힌트 펄스 애니메이션 (크기 + 발광 + 외곽선)
     /// </summary>
     private IEnumerator CoHintPulse()
     {
@@ -436,6 +483,9 @@ public class Apple : MonoBehaviour
         
         Color glowColor = new Color(1f, 0.95f, 0.3f); // 황금빛 발광
         float glowIntensity = _isUsingCustomSprite ? 0.4f : 0.6f; // 커스텀 이미지는 약간 덜 밝게
+        
+        // 외곽선 색상 (검정색)
+        Color outlineColorBase = new Color(0f, 0f, 0f, 1f);
         
         while (true)
         {
@@ -458,6 +508,20 @@ public class Apple : MonoBehaviour
                 _sr.color = Color.Lerp(_baseColor, glowColor, t * glowIntensity);
             }
             
+            // 외곽선 펄스 (투명도 변화) ✨
+            if (_outlineSR != null)
+            {
+                // t에 따라 외곽선이 켜졌다 꺼졌다
+                float outlineAlpha = Mathf.Lerp(0.3f, 0.95f, t); // 30% ~ 95% 투명도
+                Color outlineColor = outlineColorBase;
+                outlineColor.a = outlineAlpha;
+                _outlineSR.color = outlineColor;
+                
+                // 외곽선도 약간 크기 변화 (매우 얇은 두께)
+                float outlineScale = Mathf.Lerp(1.0375f, 1.0875f, t);
+                _outlineObject.transform.localScale = Vector3.one * outlineScale;
+            }
+            
             yield return null;
         }
     }
@@ -473,26 +537,152 @@ public class Apple : MonoBehaviour
 
     private IEnumerator CoRemove(System.Action onDone)
     {
-        float dur = 0.25f;
+        // 폭신 터지기 효과 🎉
+        
+        // 1단계: 스쿼시 (눌림)
+        float squashDur = 0.08f;
         Vector3 startScale = transform.localScale;
         Color startColor = _sr.color;
         Color startLabelColor = _label != null ? _label.color : Color.white;
-
-        for (float t = 0; t < dur; t += Time.deltaTime)
+        
+        for (float t = 0; t < squashDur; t += Time.deltaTime)
         {
-            float p = t / dur;
-            transform.localScale = startScale * (1f + 0.35f * p);
-
-            float alpha = 1f - p;
-            _sr.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+            float p = t / squashDur;
+            float squash = 1f - 0.2f * Mathf.Sin(p * Mathf.PI);
+            transform.localScale = startScale * squash;
+            yield return null;
+        }
+        
+        // 2단계: 폭신 터지기 (부풀어 오름 + 파티클)
+        float popDur = 0.15f;
+        
+        // 작은 발바닥 파티클 생성
+        SpawnPawParticles();
+        
+        // 반짝이 파티클 생성
+        SpawnSparkleParticles();
+        
+        for (float t = 0; t < popDur; t += Time.deltaTime)
+        {
+            float p = t / popDur;
+            
+            // 크게 부풀어 오름
+            float scale = 1f + 0.6f * p;
+            transform.localScale = startScale * scale;
+            
+            // 밝아지며 사라짐
+            float alpha = 1f - p * p; // ease-in
+            float brightness = 1f + 0.5f * p; // 밝아짐
+            _sr.color = new Color(startColor.r * brightness, startColor.g * brightness, startColor.b * brightness, alpha);
+            
             if (_label != null)
                 _label.color = new Color(startLabelColor.r, startLabelColor.g, startLabelColor.b, alpha);
-
+            
             yield return null;
         }
 
         onDone?.Invoke();
         gameObject.SetActive(false);
+    }
+    
+    /// <summary>
+    /// 작은 발바닥 파티클 생성
+    /// </summary>
+    private void SpawnPawParticles()
+    {
+        int particleCount = Random.Range(4, 7); // 4-6개
+        
+        for (int i = 0; i < particleCount; i++)
+        {
+            // 파티클 생성
+            var particleGo = new GameObject("PawParticle");
+            particleGo.transform.position = transform.position;
+            particleGo.transform.localScale = transform.localScale * 0.3f; // 작게
+            
+            var sr = particleGo.AddComponent<SpriteRenderer>();
+            sr.sprite = _sr.sprite;
+            sr.color = _baseColor;
+            sr.sortingOrder = _sr.sortingOrder + 1;
+            
+            // 랜덤 방향으로 날아가기
+            float angle = (360f / particleCount) * i + Random.Range(-20f, 20f);
+            Vector3 direction = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad), 0);
+            float distance = Random.Range(0.8f, 1.5f);
+            
+            // 자체 파괴 컴포넌트 추가
+            var autoDestroy = particleGo.AddComponent<ParticleAutoDestroy>();
+            autoDestroy.StartFloat(direction * distance, Random.Range(0.4f, 0.6f));
+        }
+    }
+    
+    /// <summary>
+    /// 반짝이 파티클 생성
+    /// </summary>
+    private void SpawnSparkleParticles()
+    {
+        int sparkleCount = Random.Range(5, 9); // 5-8개
+        
+        for (int i = 0; i < sparkleCount; i++)
+        {
+            var sparkleGo = new GameObject("Sparkle");
+            sparkleGo.transform.position = transform.position + new Vector3(
+                Random.Range(-0.2f, 0.2f),
+                Random.Range(-0.2f, 0.2f),
+                0
+            );
+            
+            // 별 모양 스프라이트 생성 (간단한 다이아몬드)
+            var sr = sparkleGo.AddComponent<SpriteRenderer>();
+            sr.sprite = CreateSparkleSprite();
+            sr.color = new Color(1f, 0.95f, 0.3f, 1f); // 황금색
+            sr.sortingOrder = _sr.sortingOrder + 2;
+            
+            float size = Random.Range(0.1f, 0.2f);
+            sparkleGo.transform.localScale = Vector3.one * size;
+            
+            // 랜덤 방향으로
+            Vector3 direction = new Vector3(Random.Range(-1f, 1f), Random.Range(-1f, 1f), 0).normalized;
+            float distance = Random.Range(0.5f, 1.2f);
+            
+            // 자체 파괴 컴포넌트 추가
+            var autoDestroy = sparkleGo.AddComponent<ParticleAutoDestroy>();
+            autoDestroy.StartFloat(direction * distance, Random.Range(0.3f, 0.5f));
+        }
+    }
+    
+    /// <summary>
+    /// 별 모양 스프라이트 생성
+    /// </summary>
+    private Sprite CreateSparkleSprite()
+    {
+        int size = 16;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        
+        var pixels = new Color[size * size];
+        for (int i = 0; i < pixels.Length; i++)
+            pixels[i] = Color.clear;
+        
+        // 간단한 다이아몬드 모양
+        int center = size / 2;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int dx = Mathf.Abs(x - center);
+                int dy = Mathf.Abs(y - center);
+                
+                if (dx + dy < center)
+                {
+                    pixels[y * size + x] = Color.white;
+                }
+            }
+        }
+        
+        texture.SetPixels(pixels);
+        texture.Apply();
+        
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
     }
 
     /// <summary>

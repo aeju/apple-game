@@ -107,12 +107,14 @@ public class UIManager : MonoBehaviour
         if (PlayerPrefs.HasKey("PlayerNickname"))
         {
             _currentNickname = PlayerPrefs.GetString("PlayerNickname");
+            Debug.Log($"[UIManager] Nickname loaded from PlayerPrefs: {_currentNickname}");
         }
         else
         {
             // 랜덤 4자리 숫자로 Guest_XXXX 생성
             int randomNum = Random.Range(1000, 9999);
             _currentNickname = $"Guest_{randomNum}";
+            Debug.Log($"[UIManager] New nickname generated: {_currentNickname}");
         }
     }
     
@@ -121,14 +123,20 @@ public class UIManager : MonoBehaviour
     /// </summary>
     private void SaveNickname(string nickname)
     {
+        string oldNickname = _currentNickname;
+        
         if (string.IsNullOrWhiteSpace(nickname))
         {
             nickname = $"Guest_{Random.Range(1000, 9999)}";
+            Debug.LogWarning($"[UIManager] Empty nickname, generated new: {nickname}");
         }
         
         _currentNickname = nickname;
         PlayerPrefs.SetString("PlayerNickname", nickname);
         PlayerPrefs.Save();
+        
+        Debug.Log($"[UIManager] ✅ Nickname saved! '{oldNickname}' → '{_currentNickname}'");
+        Debug.Log($"[UIManager] PlayerPrefs verification: {PlayerPrefs.GetString("PlayerNickname")}");
     }
     
     /// <summary>
@@ -201,11 +209,25 @@ public class UIManager : MonoBehaviour
         }
         else
         {
+            Debug.Log("[UIManager] Leaderboard panel found, re-referencing container...");
             // 랭킹보드 엔트리 컨테이너 재참조
             var scrollArea = _leaderboardPanel.transform.Find("ScrollArea");
             if (scrollArea != null)
             {
                 _leaderboardEntriesContainer = scrollArea.Find("Entries");
+                Debug.Log($"[UIManager] Entries container found: {_leaderboardEntriesContainer != null}");
+            }
+            else
+            {
+                Debug.LogError("[UIManager] ScrollArea not found in leaderboard panel!");
+            }
+            
+            // 컨테이너가 없으면 재생성
+            if (_leaderboardEntriesContainer == null)
+            {
+                Debug.LogWarning("[UIManager] Entries container missing, recreating leaderboard panel...");
+                Destroy(_leaderboardPanel);
+                CreateLeaderboardPanel();
             }
         }
 
@@ -264,6 +286,8 @@ public class UIManager : MonoBehaviour
         var buttons = _hudPanel.GetComponentsInChildren<Button>(true);
         bool hasRestartButton = false;
         bool hasHomeButton = false;
+        bool hasHintButton = false;
+        bool hasShuffleButton = false;
         Button hintBtnComponent = null;
         Button shuffleBtnComponent = null;
         
@@ -274,6 +298,7 @@ public class UIManager : MonoBehaviour
             {
                 if (label.text.Contains("HINT"))
                 {
+                    hasHintButton = true;
                     _hintButton = btn;
                     _hintButtonText = label;
                     hintBtnComponent = btn;
@@ -285,15 +310,22 @@ public class UIManager : MonoBehaviour
                         GameManager.Instance?.UseHint(); 
                     });
                     Debug.Log("[UIManager] HINT button event reconnected");
+                    
+                    // 버튼 색상 초기화 (Inspector 설정 무시)
+                    ResetButtonColor(btn, Color.white);
                 }
                 else if (label.text.Contains("SHUFFLE"))
                 {
+                    hasShuffleButton = true;
                     _shuffleButton = btn;
                     _shuffleButtonText = label;
                     shuffleBtnComponent = btn;
                     // 셔플 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, Color.white);
                 }
                 else if (label.text.Contains("RESTART"))
                 {
@@ -301,6 +333,9 @@ public class UIManager : MonoBehaviour
                     // 재시작 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.RestartGame(); });
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_NOSE_PINK);
                 }
                 else if (label.text.Contains("HOME"))
                 {
@@ -308,7 +343,59 @@ public class UIManager : MonoBehaviour
                     // 홈 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.ReturnToMenu(); });
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_PAW_CREAM);
                 }
+            }
+        }
+        
+        // BottomBar 찾기 또는 생성
+        var bottomBar = _hudPanel.transform.Find("BottomBar");
+        if (bottomBar == null)
+        {
+            Debug.Log("[UIManager] BottomBar not found, creating...");
+            var bottomBarGo = new GameObject("BottomBar");
+            bottomBarGo.transform.SetParent(_hudPanel.transform, false);
+            var rt = bottomBarGo.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 0f);
+            rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0, 20);
+            rt.sizeDelta = new Vector2(600, 70);
+            bottomBar = bottomBarGo.transform;
+        }
+        
+        // HINT, SHUFFLE 버튼이 없으면 생성
+        if (!hasHintButton || !hasShuffleButton)
+        {
+            Debug.Log("[UIManager] HINT or SHUFFLE button missing, creating...");
+            
+            if (!hasHintButton)
+            {
+                var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", Color.white,
+                    new Vector2(-240, 0), new Vector2(140, 55), 20, () =>
+                    {
+                        Debug.Log("[UIManager] HINT button clicked!");
+                        GameManager.Instance?.UseHint();
+                    });
+                _hintButton = hintBtnGo.GetComponent<Button>();
+                _hintButtonText = hintBtnGo.GetComponentInChildren<TextMeshProUGUI>();
+                _secondaryButtons.Add(_hintButton);
+                Debug.Log("[UIManager] HINT button created");
+            }
+            
+            if (!hasShuffleButton)
+            {
+                var shuffleBtnGo = CreateButton(bottomBar.transform, "SHUFFLE (3)", Color.white,
+                    new Vector2(-80, 0), new Vector2(140, 55), 20, () =>
+                    {
+                        GameManager.Instance?.UseShuffle();
+                    });
+                _shuffleButton = shuffleBtnGo.GetComponent<Button>();
+                _shuffleButtonText = shuffleBtnGo.GetComponentInChildren<TextMeshProUGUI>();
+                _secondaryButtons.Add(_shuffleButton);
+                Debug.Log("[UIManager] SHUFFLE button created");
             }
         }
         
@@ -316,50 +403,27 @@ public class UIManager : MonoBehaviour
         if (!hasRestartButton || !hasHomeButton)
         {
             Debug.Log("[UIManager] Restart or Home button missing, creating new buttons...");
-            var bottomBar = _hudPanel.transform.Find("BottomBar");
             
-            if (bottomBar != null)
+            if (!hasRestartButton)
             {
-                // 기존 버튼들의 위치와 크기를 조정 (4개 버튼 배치용)
-                if (hintBtnComponent != null)
-                {
-                    var hintRt = hintBtnComponent.GetComponent<RectTransform>();
-                    hintRt.anchoredPosition = new Vector2(-240, 0);
-                    hintRt.sizeDelta = new Vector2(140, 55);
-                    var hintLabel = hintBtnComponent.GetComponentInChildren<TextMeshProUGUI>();
-                    if (hintLabel != null) hintLabel.fontSize = 20;
-                }
-                
-                if (shuffleBtnComponent != null)
-                {
-                    var shuffleRt = shuffleBtnComponent.GetComponent<RectTransform>();
-                    shuffleRt.anchoredPosition = new Vector2(-80, 0);
-                    shuffleRt.sizeDelta = new Vector2(140, 55);
-                    var shuffleLabel = shuffleBtnComponent.GetComponentInChildren<TextMeshProUGUI>();
-                    if (shuffleLabel != null) shuffleLabel.fontSize = 20;
-                }
-                
-                if (!hasRestartButton)
-                {
-                    var restartBtnGo = CreateButton(bottomBar.transform, "RESTART", CAT_NOSE_PINK,
-                        new Vector2(80, 0), new Vector2(140, 55), 18, () =>
-                        {
-                            GameManager.Instance?.RestartGame();
-                        });
-                    _secondaryButtons.Add(restartBtnGo.GetComponent<Button>());
-                    Debug.Log("[UIManager] Restart button created");
-                }
-                
-                if (!hasHomeButton)
-                {
-                    var homeBtnGo = CreateButton(bottomBar.transform, "HOME", CAT_PAW_CREAM,
-                        new Vector2(240, 0), new Vector2(140, 55), 18, () =>
-                        {
-                            GameManager.Instance?.ReturnToMenu();
-                        });
-                    _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
-                    Debug.Log("[UIManager] Home button created");
-                }
+                var restartBtnGo = CreateButton(bottomBar.transform, "RESTART", CAT_NOSE_PINK,
+                    new Vector2(80, 0), new Vector2(140, 55), 18, () =>
+                    {
+                        GameManager.Instance?.RestartGame();
+                    });
+                _secondaryButtons.Add(restartBtnGo.GetComponent<Button>());
+                Debug.Log("[UIManager] Restart button created");
+            }
+            
+            if (!hasHomeButton)
+            {
+                var homeBtnGo = CreateButton(bottomBar.transform, "HOME", CAT_PAW_CREAM,
+                    new Vector2(240, 0), new Vector2(140, 55), 18, () =>
+                    {
+                        GameManager.Instance?.ReturnToMenu();
+                    });
+                _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
+                Debug.Log("[UIManager] Home button created");
             }
         }
 
@@ -565,6 +629,9 @@ public class UIManager : MonoBehaviour
                         GameManager.Instance?.StartGame();
                     });
                     Debug.Log("[UIManager] PLAY button event reconnected!");
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_EYE_GOLD);
                 }
                 else if (label.text == "RANKING")
                 {
@@ -577,6 +644,9 @@ public class UIManager : MonoBehaviour
                         ShowLeaderboard();
                     });
                     Debug.Log("[UIManager] RANKING button event reconnected!");
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_EYE_GOLD);
                 }
                 else if (label.text == "☀" || label.text == "☾")
                 {
@@ -596,25 +666,10 @@ public class UIManager : MonoBehaviour
         {
             Debug.LogWarning("[UIManager] RANKING button not found, creating...");
             
-            // PLAY 버튼 위치 조정 (위로)
-            var playBtn = _mainMenuPanel.GetComponentsInChildren<Button>(true)
-                .FirstOrDefault(b => b.GetComponentInChildren<TextMeshProUGUI>()?.text == "PLAY");
-            if (playBtn != null)
-            {
-                var playRt = playBtn.GetComponent<RectTransform>();
-                playRt.anchoredPosition = new Vector2(0, -30);
-                Debug.Log("[UIManager] PLAY button position adjusted");
-            }
+            // ⚠️ PLAY 버튼, Best Score 위치 자동 조정 제거
+            // 사용자가 Edit 모드에서 배치한 위치 유지
             
-            // Best Score 텍스트 위치 조정 (아래로)
-            if (_menuBestScoreText != null)
-            {
-                var bestRt = _menuBestScoreText.GetComponent<RectTransform>();
-                bestRt.anchoredPosition = new Vector2(0, -190);
-                Debug.Log("[UIManager] Best Score position adjusted");
-            }
-            
-            // RANKING 버튼 생성
+            // RANKING 버튼 생성 (Edit 모드에서 배치한 위치에 맞춰 조정 필요)
             var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", CAT_EYE_GOLD,
                 new Vector2(0, -115), new Vector2(280, 60), 28, () =>
                 {
@@ -666,11 +721,17 @@ public class UIManager : MonoBehaviour
                 {
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.RestartGame(); });
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_EYE_GOLD);
                 }
                 else if (label.text == "MENU")
                 {
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.ReturnToMenu(); });
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_EYE_GOLD);
                 }
             }
         }
@@ -743,14 +804,42 @@ public class UIManager : MonoBehaviour
             if (img != null)
                 img.color = ThemeManager.Instance.GetColor("HUDBar");
 
-        // 텍스트
+        // Score와 Timer는 다크모드에서도 검정색 유지 (먼저 처리)
+        Color scoreTimerColor = new Color(0.17f, 0.17f, 0.18f); // 차콜 (항상 검정)
+        
+        // 텍스트 (Score/Timer 제외)
         foreach (var txt in _primaryTexts)
-            if (txt != null)
+        {
+            if (txt != null && txt != _scoreText && txt != _timerText)
                 txt.color = ThemeManager.Instance.GetColor("TextPrimary");
+        }
 
         foreach (var txt in _secondaryTexts)
-            if (txt != null)
+        {
+            if (txt != null && txt != _scoreText && txt != _timerText)
                 txt.color = ThemeManager.Instance.GetColor("TextSecondary");
+        }
+        
+        // Score와 Timer는 항상 검정색
+        if (_scoreText != null)
+        {
+            _scoreText.color = scoreTimerColor;
+            Debug.Log($"[UIManager] Set _scoreText color to black: {_scoreText.color}");
+        }
+        else
+        {
+            Debug.LogWarning("[UIManager] _scoreText is null in ApplyTheme!");
+        }
+        
+        if (_timerText != null)
+        {
+            _timerText.color = scoreTimerColor;
+            Debug.Log($"[UIManager] Set _timerText color to black: {_timerText.color}");
+        }
+        else
+        {
+            Debug.LogWarning("[UIManager] _timerText is null in ApplyTheme!");
+        }
 
         // 버튼
         ApplyButtonTheme(_primaryButtons, "BtnPrimary");
@@ -1242,6 +1331,8 @@ public class UIManager : MonoBehaviour
         if (_scoreText != null)
         {
             _scoreText.text = score.ToString();
+            // 항상 검정색 유지 (다크모드에서도)
+            _scoreText.color = new Color(0.17f, 0.17f, 0.18f);
             Debug.Log($"[UIManager] Score updated to: {score}");
         }
         else
@@ -1257,6 +1348,9 @@ public class UIManager : MonoBehaviour
         int minutes = Mathf.FloorToInt(time / 60f);
         int seconds = Mathf.FloorToInt(time % 60f);
         _timerText.text = $"{minutes}:{seconds:D2}";
+        
+        // 항상 검정색 유지 (다크모드에서도)
+        _timerText.color = new Color(0.17f, 0.17f, 0.18f);
 
         // 슬라이더 업데이트 (원작 스타일)
         if (_timerSlider != null && GameManager.Instance != null)
@@ -1595,36 +1689,41 @@ public class UIManager : MonoBehaviour
             _leaderboardPanel.SetActive(true);
             _mainMenuPanel?.SetActive(false);
             
-            // Firebase 랭킹 우선 시도
-            if (FirebaseManager.Instance != null)
+            Debug.Log("[UIManager] ShowLeaderboard called");
+            
+            // 로컬 랭킹 우선 표시 (빠른 응답)
+            if (LocalLeaderboardManager.Instance != null)
             {
-                Debug.Log("[UIManager] Loading Firebase leaderboard...");
-                FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
-                
-                // 로딩 중 메시지 표시
-                ShowLoadingMessage();
-            }
-            else if (LocalLeaderboardManager.Instance != null)
-            {
-                // Firebase 없으면 로컬 랭킹 표시
                 var localEntries = LocalLeaderboardManager.Instance.GetTopEntries(10);
+                Debug.Log($"[UIManager] Local leaderboard has {localEntries.Count} entries");
+                
                 if (localEntries != null && localEntries.Count > 0)
                 {
-                    Debug.Log($"[UIManager] Showing local leaderboard ({localEntries.Count} entries)");
+                    Debug.Log($"[UIManager] ✅ Displaying local leaderboard ({localEntries.Count} entries)");
                     DisplayLeaderboard(localEntries);
                 }
                 else
                 {
-                    Debug.LogWarning("[UIManager] No local leaderboard entries");
+                    Debug.LogWarning("[UIManager] No local leaderboard entries, showing empty message");
                     DisplayLeaderboard(new List<LeaderboardEntry>());
                 }
             }
             else
             {
-                // 둘 다 없으면 빈 랭킹
-                Debug.LogWarning("[UIManager] No leaderboard manager found");
+                Debug.LogError("[UIManager] ❌ LocalLeaderboardManager.Instance is NULL!");
                 DisplayLeaderboard(new List<LeaderboardEntry>());
             }
+            
+            // Firebase 랭킹도 시도 (백그라운드, 있으면 업데이트)
+            if (FirebaseManager.Instance != null)
+            {
+                Debug.Log("[UIManager] Also trying Firebase leaderboard in background...");
+                FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
+            }
+        }
+        else
+        {
+            Debug.LogError("[UIManager] ❌ Leaderboard panel is NULL!");
         }
     }
     
@@ -1654,11 +1753,36 @@ public class UIManager : MonoBehaviour
 
     private void OnLeaderboardLoaded(System.Collections.Generic.List<LeaderboardEntry> entries)
     {
+        // Firebase에서 데이터를 불러오지 못했으면 로컬 랭킹으로 폴백
+        if (entries == null || entries.Count == 0)
+        {
+            Debug.LogWarning("[UIManager] Firebase leaderboard empty or failed, trying local leaderboard...");
+            
+            if (LocalLeaderboardManager.Instance != null)
+            {
+                var localEntries = LocalLeaderboardManager.Instance.GetTopEntries(10);
+                if (localEntries != null && localEntries.Count > 0)
+                {
+                    Debug.Log($"[UIManager] Showing local leaderboard ({localEntries.Count} entries)");
+                    DisplayLeaderboard(localEntries);
+                    return;
+                }
+            }
+        }
+        
         DisplayLeaderboard(entries);
     }
 
     private void DisplayLeaderboard(System.Collections.Generic.List<LeaderboardEntry> entries)
     {
+        Debug.Log($"[UIManager] DisplayLeaderboard called with {(entries == null ? "null" : entries.Count.ToString())} entries");
+        
+        if (_leaderboardEntriesContainer == null)
+        {
+            Debug.LogError("[UIManager] ❌ _leaderboardEntriesContainer is NULL! Cannot display leaderboard.");
+            return;
+        }
+        
         // 기존 엔트리 삭제
         foreach (Transform child in _leaderboardEntriesContainer)
         {
@@ -1668,6 +1792,7 @@ public class UIManager : MonoBehaviour
         // 엔트리가 없으면 메시지 표시
         if (entries == null || entries.Count == 0)
         {
+            Debug.LogWarning("[UIManager] No leaderboard entries to display");
             var emptyMsg = CreateTextElement(_leaderboardEntriesContainer, 
                 "No records yet!\nPlay to set your first score!",
                 28, Color.gray, new Vector2(0, -100), new Vector2(550, 200), isPrimary: false);
@@ -1678,6 +1803,7 @@ public class UIManager : MonoBehaviour
             return;
         }
 
+        Debug.Log($"[UIManager] Creating {entries.Count} leaderboard entries");
         float yOffset = 0f;
         int rank = 1;
 
@@ -1691,6 +1817,8 @@ public class UIManager : MonoBehaviour
         // 컨테이너 높이 조정
         var containerRt2 = _leaderboardEntriesContainer.GetComponent<RectTransform>();
         containerRt2.sizeDelta = new Vector2(580, Mathf.Max(500, -yOffset + 50));
+        
+        Debug.Log("[UIManager] Leaderboard display complete");
     }
 
     private void CreateLeaderboardEntry(int rank, string nickname, int score, float yOffset)
@@ -1999,6 +2127,28 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 버튼 이미지 색상을 초기화합니다 (Inspector 설정 무시)
+    /// </summary>
+    private void ResetButtonColor(Button btn, Color color)
+    {
+        var img = btn.GetComponent<Image>();
+        if (img != null)
+        {
+            img.color = color;
+            
+            // ColorBlock도 업데이트
+            var colors = btn.colors;
+            colors.normalColor = color;
+            colors.highlightedColor = Color.Lerp(color, Color.white, 0.2f);
+            colors.pressedColor = Color.Lerp(color, Color.black, 0.2f);
+            colors.disabledColor = Color.Lerp(color, Color.gray, 0.5f);
+            btn.colors = colors;
+            
+            Debug.Log($"[UIManager] Button '{btn.name}' color reset to {color}");
+        }
+    }
+
+    /// <summary>
     /// 둥근 네모 스프라이트를 프로그래매틱하게 생성합니다
     /// </summary>
     private Sprite CreateRoundedRectSprite(int width, int height, int cornerRadius)
@@ -2249,13 +2399,30 @@ public class UIManager : MonoBehaviour
     /// </summary>
     private void OnNicknameChangeClicked()
     {
+        Debug.Log("[UIManager] SAVE button clicked!");
+        
+        if (_nicknameInputField == null)
+        {
+            Debug.LogError("[UIManager] ❌ Nickname input field is NULL!");
+            return;
+        }
+        
         string newNickname = _nicknameInputField.text.Trim();
+        Debug.Log($"[UIManager] Input field text: '{newNickname}'");
+        
+        string oldNickname = _currentNickname;
         SaveNickname(newNickname);
         
-        // 피드백
-        Debug.Log($"[UIManager] Nickname saved: {_currentNickname}");
+        // 입력 필드 업데이트 (저장된 닉네임으로)
+        _nicknameInputField.text = _currentNickname;
         
-        // TODO: 저장 완료 피드백 (예: 버튼 텍스트를 잠깐 "SAVED!"로 변경)
+        // 닉네임이 바뀌었다는 것만 알림 (다음 게임부터 적용)
+        if (oldNickname != _currentNickname)
+        {
+            Debug.Log($"[UIManager] ✅ Nickname changed! Will be used for next game: {_currentNickname}");
+        }
+        
+        // 저장 완료 피드백
         StartCoroutine(CoShowSavedFeedback());
     }
 
