@@ -119,6 +119,17 @@ public class GameManager : MonoBehaviour
         if (State == GameState.GameOver) return;
         SetState(GameState.GameOver);
         ScoreManager.Instance?.SaveBestScore();
+        
+        // Firebase에 점수 제출
+        if (FirebaseManager.Instance != null && ScoreManager.Instance != null && UIManager.Instance != null)
+        {
+            string nickname = UIManager.Instance.GetNickname();
+            int score = ScoreManager.Instance.Score;
+            int combo = ScoreManager.Instance.MaxCombo;
+            
+            FirebaseManager.Instance.SubmitScore(nickname, score, combo);
+            Debug.Log($"[GameManager] Score submitted to leaderboard: {nickname} - {score}");
+        }
     }
 
     /// <summary>

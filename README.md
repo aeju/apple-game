@@ -75,9 +75,13 @@ AppleGameSetup (부트스트래퍼)
 │   ├── 게임 HUD
 │   ├── 카운트다운 오버레이
 │   └── 결과 화면
-└── AudioManager (오디오)
-    ├── BGM
-    └── SFX (Inspector에서 클립 할당)
+├── AudioManager (오디오)
+│   ├── BGM
+│   └── SFX (Inspector에서 클립 할당)
+└── FirebaseManager (랭킹 시스템)
+    ├── 익명 인증
+    ├── 점수 제출
+    └── 리더보드 불러오기
 ```
 
 ## WebGL 빌드 설정
@@ -122,12 +126,77 @@ AudioManager에 AudioClip을 할당하면 사운드가 재생됩니다:
    - `Countdown Clip`: 카운트다운
    - `Game Over Clip`: 게임 종료
 
+## 랭킹 시스템 (Firebase)
+
+### 현재 상태
+- ✅ UI 구현 완료 (메인 메뉴 RANKING 버튼, 리더보드 패널)
+- ✅ 닉네임 시스템 완료 (LocalStorage 저장)
+- ✅ 자동 점수 제출 (게임 오버 시)
+- ⚠️ Firebase SDK 미설치 (플레이스홀더 데이터로 작동)
+
+### Firebase 연동 방법
+
+#### 1. Firebase 프로젝트 생성
+1. [Firebase Console](https://console.firebase.google.com/) 접속
+2. 새 프로젝트 생성
+3. Firestore Database 활성화
+4. Authentication → 로그인 방법 → 익명 활성화
+
+#### 2. Unity Firebase SDK 설치
+1. [Firebase Unity SDK](https://firebase.google.com/download/unity) 다운로드
+2. Unity에서 다음 패키지 임포트:
+   - `FirebaseAuth.unitypackage`
+   - `FirebaseFirestore.unitypackage`
+3. `google-services.json` (Android) 또는 `GoogleService-Info.plist` (iOS) 다운로드
+4. `Assets/` 폴더에 추가
+
+#### 3. 코드 활성화
+`FirebaseManager.cs` 파일에서 주석 해제:
+```csharp
+// 1. 상단 using 구문 주석 해제
+// 2. InitializeFirebase() 내부 코드 주석 해제
+// 3. SignInAnonymously() 주석 해제
+// 4. SubmitScore() 내부 코드 주석 해제
+// 5. LoadLeaderboard() 내부 코드 주석 해제
+```
+
+#### 4. Firestore 보안 규칙 설정
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /leaderboard/{document} {
+      // 인증된 사용자만 읽기/쓰기 가능
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+  }
+}
+```
+
+#### 5. 빌드 설정 (WebGL)
+- `Project Settings` → `Player` → `Publishing Settings`
+- Compression Format: `Disabled` (Firebase SDK와 호환성 문제 방지)
+- 또는 `Gzip` 사용
+
+### 작동 방식
+1. 게임 시작 시 자동으로 익명 로그인
+2. 게임 오버 시 닉네임+점수+콤보 자동 제출
+3. RANKING 버튼 클릭 → 상위 10명 불러오기
+4. 닉네임은 결과 화면에서 변경 가능 (LocalStorage 저장)
+
+### Firebase 없이 테스트
+- Firebase SDK 미설치 시 플레이스홀더 데이터로 작동
+- 모든 UI와 기능은 정상 작동
+- 실제 데이터 저장/불러오기만 불가능
+
 ## 기술 스택
 
 - Unity 6 (6000.0.58f2)
 - Universal Render Pipeline (2D)
 - Input System (마우스 + 터치 통합)
 - TextMeshPro (UI 텍스트)
+- Firebase (Firestore + Auth) - 선택사항
 
 ## 향후 개발 계획
 
@@ -136,6 +205,7 @@ AudioManager에 AudioClip을 할당하면 사운드가 재생됩니다:
 - 추가 게임 모드 (Zen, 챌린지, 스테이지)
 
 ### v2.0
-- 글로벌 리더보드 (Firebase/PlayFab)
+- ✅ 글로벌 리더보드 (UI 완료, Firebase 연동 준비 완료)
 - 리플레이 공유
 - 커스텀 테마/스킨
+- 친구 도전 시스템

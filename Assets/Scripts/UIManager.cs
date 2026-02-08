@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 /// <summary>
 /// 고양이 테마 UI - 밝은/다크 모드 지원
@@ -68,11 +69,18 @@ public class UIManager : MonoBehaviour
     private TextMeshProUGUI _resultComboText;
     private TextMeshProUGUI _resultNewRecordText;
     private TextMeshProUGUI _resultCatFace;
+    private TMP_InputField _nicknameInputField;
+    private Button _nicknameChangeButton;
+    private string _currentNickname;
 
     // 메인메뉴
     private TextMeshProUGUI _menuBestScoreText;
     private Button _themeToggleButton;
     private TextMeshProUGUI _themeToggleText;
+
+    // 랭킹
+    private GameObject _leaderboardPanel;
+    private Transform _leaderboardEntriesContainer;
 
     // 공통 색상
     private static readonly Color CAT_EYE_GOLD = new Color(0.95f, 0.78f, 0.10f);
@@ -86,6 +94,49 @@ public class UIManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(this); return; }
         Instance = this;
+        
+        // 닉네임 초기화
+        LoadNickname();
+    }
+    
+    /// <summary>
+    /// 저장된 닉네임을 불러오거나 Guest_XXXX 생성
+    /// </summary>
+    private void LoadNickname()
+    {
+        if (PlayerPrefs.HasKey("PlayerNickname"))
+        {
+            _currentNickname = PlayerPrefs.GetString("PlayerNickname");
+        }
+        else
+        {
+            // 랜덤 4자리 숫자로 Guest_XXXX 생성
+            int randomNum = Random.Range(1000, 9999);
+            _currentNickname = $"Guest_{randomNum}";
+        }
+    }
+    
+    /// <summary>
+    /// 닉네임 저장
+    /// </summary>
+    private void SaveNickname(string nickname)
+    {
+        if (string.IsNullOrWhiteSpace(nickname))
+        {
+            nickname = $"Guest_{Random.Range(1000, 9999)}";
+        }
+        
+        _currentNickname = nickname;
+        PlayerPrefs.SetString("PlayerNickname", nickname);
+        PlayerPrefs.Save();
+    }
+    
+    /// <summary>
+    /// 현재 닉네임 반환
+    /// </summary>
+    public string GetNickname()
+    {
+        return _currentNickname;
     }
 
     public void Initialize(Canvas canvas)
@@ -107,6 +158,7 @@ public class UIManager : MonoBehaviour
             CreateHUDPanel();
             CreateCountdownPanel();
             CreateResultPanel();
+            CreateLeaderboardPanel();
         }
 
         Debug.Log("[UIManager] About to show Menu panel...");
@@ -128,6 +180,7 @@ public class UIManager : MonoBehaviour
         _hudPanel = _canvas.transform.Find("HUDPanel")?.gameObject;
         _countdownPanel = _canvas.transform.Find("CountdownPanel")?.gameObject;
         _resultPanel = _canvas.transform.Find("ResultPanel")?.gameObject;
+        _leaderboardPanel = _canvas.transform.Find("LeaderboardPanel")?.gameObject;
 
         if (_mainMenuPanel == null || _hudPanel == null || _countdownPanel == null || _resultPanel == null)
         {
@@ -136,7 +189,24 @@ public class UIManager : MonoBehaviour
             CreateHUDPanel();
             CreateCountdownPanel();
             CreateResultPanel();
+            CreateLeaderboardPanel();
             return;
+        }
+        
+        // 랭킹보드 패널이 없으면 생성
+        if (_leaderboardPanel == null)
+        {
+            Debug.LogWarning("[UIManager] Leaderboard panel not found, creating...");
+            CreateLeaderboardPanel();
+        }
+        else
+        {
+            // 랭킹보드 엔트리 컨테이너 재참조
+            var scrollArea = _leaderboardPanel.transform.Find("ScrollArea");
+            if (scrollArea != null)
+            {
+                _leaderboardEntriesContainer = scrollArea.Find("Entries");
+            }
         }
 
         // HUD 요소 재참조
@@ -409,6 +479,36 @@ public class UIManager : MonoBehaviour
             else if (txt.text.Contains("="))
                 _resultCatFace = txt;
         }
+        
+        // 닉네임 입력 필드 재참조
+        _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
+        if (_nicknameInputField != null)
+        {
+            _nicknameInputField.text = _currentNickname;
+            
+            // 변경 버튼 재연결
+            var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
+            foreach (var btn in nicknameButtons)
+            {
+                var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnText != null && btnText.text == "SAVE")
+                {
+                    _nicknameChangeButton = btn;
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(OnNicknameChangeClicked);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            // 닉네임 입력 필드가 없으면 생성
+            Debug.LogWarning("[UIManager] Nickname input not found, creating...");
+            var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
+            if (nicknameContainer != null)
+                Destroy(nicknameContainer.gameObject);
+            CreateNicknameInput(_resultPanel.transform);
+        }
 
         // 메인메뉴 요소
         var menuTexts = _mainMenuPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
@@ -436,6 +536,8 @@ public class UIManager : MonoBehaviour
         var menuButtons = _mainMenuPanel.GetComponentsInChildren<Button>(true);
         Debug.Log($"[UIManager] Found {menuButtons.Length} buttons in MainMenu");
         
+        bool hasRankingButton = false;
+        
         foreach (var btn in menuButtons)
         {
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
@@ -454,6 +556,18 @@ public class UIManager : MonoBehaviour
                     });
                     Debug.Log("[UIManager] PLAY button event reconnected!");
                 }
+                else if (label.text == "RANKING")
+                {
+                    hasRankingButton = true;
+                    // RANKING 버튼 이벤트 재연결
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() =>
+                    {
+                        Debug.Log("[UIManager] RANKING button clicked!");
+                        ShowLeaderboard();
+                    });
+                    Debug.Log("[UIManager] RANKING button event reconnected!");
+                }
                 else if (label.text == "☀" || label.text == "☾")
                 {
                     _themeToggleButton = btn;
@@ -465,6 +579,39 @@ public class UIManager : MonoBehaviour
                     });
                 }
             }
+        }
+        
+        // RANKING 버튼이 없으면 생성
+        if (!hasRankingButton)
+        {
+            Debug.LogWarning("[UIManager] RANKING button not found, creating...");
+            
+            // PLAY 버튼 위치 조정 (위로)
+            var playBtn = _mainMenuPanel.GetComponentsInChildren<Button>(true)
+                .FirstOrDefault(b => b.GetComponentInChildren<TextMeshProUGUI>()?.text == "PLAY");
+            if (playBtn != null)
+            {
+                var playRt = playBtn.GetComponent<RectTransform>();
+                playRt.anchoredPosition = new Vector2(0, -30);
+                Debug.Log("[UIManager] PLAY button position adjusted");
+            }
+            
+            // Best Score 텍스트 위치 조정 (아래로)
+            if (_menuBestScoreText != null)
+            {
+                var bestRt = _menuBestScoreText.GetComponent<RectTransform>();
+                bestRt.anchoredPosition = new Vector2(0, -190);
+                Debug.Log("[UIManager] Best Score position adjusted");
+            }
+            
+            // RANKING 버튼 생성
+            var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", CAT_EYE_GOLD,
+                new Vector2(0, -115), new Vector2(280, 60), 28, () =>
+                {
+                    ShowLeaderboard();
+                });
+            _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+            Debug.Log("[UIManager] RANKING button created!");
         }
 
         // HUD 버튼 재연결
@@ -682,15 +829,23 @@ public class UIManager : MonoBehaviour
 
         // Play 버튼
         var playBtn = CreateButton(_mainMenuPanel.transform, "PLAY", Color.white,
-            new Vector2(0, -50), new Vector2(320, 70), 36, () =>
+            new Vector2(0, -30), new Vector2(320, 70), 36, () =>
             {
                 GameManager.Instance?.StartGame();
             });
         _primaryButtons.Add(playBtn.GetComponent<Button>());
 
+        // Ranking 버튼
+        var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", CAT_EYE_GOLD,
+            new Vector2(0, -115), new Vector2(280, 60), 28, () =>
+            {
+                ShowLeaderboard();
+            });
+        _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+
         // 최고기록
         _menuBestScoreText = CreateTextElement(_mainMenuPanel.transform, "Best: 0",
-            24, CAT_EYE_GOLD, new Vector2(0, -140), new Vector2(400, 50), isPrimary: false);
+            24, CAT_EYE_GOLD, new Vector2(0, -190), new Vector2(400, 50), isPrimary: false);
 
         // 테마 토글 버튼 (우측 상단) - 절대 위치 사용
         var themeBtn = new GameObject("ThemeToggle");
@@ -1291,19 +1446,22 @@ public class UIManager : MonoBehaviour
         _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
             28, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
 
+        // 닉네임 입력 영역
+        CreateNicknameInput(_resultPanel.transform);
+
         _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!",
-            36, CAT_EYE_BRIGHT, new Vector2(0, -40), new Vector2(500, 50), isPrimary: false);
+            36, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
         _resultNewRecordText.fontStyle = FontStyles.Bold;
 
         var retryBtn = CreateButton(_resultPanel.transform, "RETRY", Color.white,
-            new Vector2(-100, -130), new Vector2(240, 65), 26, () =>
+            new Vector2(-100, -170), new Vector2(240, 65), 26, () =>
             {
                 GameManager.Instance?.RestartGame();
             });
         _primaryButtons.Add(retryBtn.GetComponent<Button>());
 
         var menuBtn = CreateButton(_resultPanel.transform, "MENU", Color.white,
-            new Vector2(100, -130), new Vector2(240, 65), 26, () =>
+            new Vector2(100, -170), new Vector2(240, 65), 26, () =>
             {
                 GameManager.Instance?.ReturnToMenu();
             });
@@ -1336,6 +1494,12 @@ public class UIManager : MonoBehaviour
 
         if (isNewRecord)
             StartCoroutine(CoPulseNewRecord());
+        
+        // 닉네임 입력 필드 업데이트
+        if (_nicknameInputField != null)
+        {
+            _nicknameInputField.text = _currentNickname;
+        }
     }
 
     private IEnumerator CoPulseNewRecord()
@@ -1350,6 +1514,179 @@ public class UIManager : MonoBehaviour
 
             yield return null;
         }
+    }
+
+    // ─── 랭킹보드 ───
+
+    private void CreateLeaderboardPanel()
+    {
+        _leaderboardPanel = CreatePanel("LeaderboardPanel", Color.white, true);
+        SetFullStretch(_leaderboardPanel.GetComponent<RectTransform>());
+
+        // 타이틀
+        var title = CreateTextElement(_leaderboardPanel.transform, "🏆 LEADERBOARD 🏆",
+            48, CAT_EYE_GOLD, new Vector2(0, 350), new Vector2(700, 80), isPrimary: false);
+        title.fontStyle = FontStyles.Bold;
+
+        // 스크롤 영역 컨테이너
+        var scrollArea = new GameObject("ScrollArea");
+        scrollArea.transform.SetParent(_leaderboardPanel.transform, false);
+        var scrollAreaRt = scrollArea.AddComponent<RectTransform>();
+        scrollAreaRt.anchoredPosition = new Vector2(0, 0);
+        scrollAreaRt.sizeDelta = new Vector2(600, 550);
+
+        // 배경
+        var scrollBg = scrollArea.AddComponent<Image>();
+        scrollBg.color = new Color(1f, 1f, 1f, 0.3f);
+        scrollBg.sprite = CreateRoundedRectSprite(100, 100, 15);
+        scrollBg.type = Image.Type.Sliced;
+        _panelBackgrounds.Add(scrollBg);
+
+        // 엔트리 컨테이너 (실제 랭킹 항목들이 들어갈 곳)
+        var entriesContainer = new GameObject("Entries");
+        entriesContainer.transform.SetParent(scrollArea.transform, false);
+        var entriesRt = entriesContainer.AddComponent<RectTransform>();
+        entriesRt.anchorMin = new Vector2(0.5f, 1f);
+        entriesRt.anchorMax = new Vector2(0.5f, 1f);
+        entriesRt.pivot = new Vector2(0.5f, 1f);
+        entriesRt.anchoredPosition = new Vector2(0, -10);
+        entriesRt.sizeDelta = new Vector2(580, 0);
+
+        _leaderboardEntriesContainer = entriesContainer.transform;
+
+        // Close 버튼
+        var closeBtn = CreateButton(_leaderboardPanel.transform, "CLOSE", Color.white,
+            new Vector2(0, -360), new Vector2(280, 65), 28, () =>
+            {
+                HideLeaderboard();
+            });
+        _primaryButtons.Add(closeBtn.GetComponent<Button>());
+
+        _leaderboardPanel.SetActive(false);
+    }
+
+    public void ShowLeaderboard()
+    {
+        if (_leaderboardPanel != null)
+        {
+            _leaderboardPanel.SetActive(true);
+            _mainMenuPanel?.SetActive(false);
+            
+            // Firebase에서 랭킹 불러오기
+            if (FirebaseManager.Instance != null)
+            {
+                FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
+            }
+            else
+            {
+                // Firebase 없으면 로컬 데이터로 테스트
+                Debug.LogWarning("[UIManager] Firebase not initialized, showing placeholder data");
+                ShowPlaceholderLeaderboard();
+            }
+        }
+    }
+
+    public void HideLeaderboard()
+    {
+        if (_leaderboardPanel != null)
+        {
+            _leaderboardPanel.SetActive(false);
+            _mainMenuPanel?.SetActive(true);
+        }
+    }
+
+    private void OnLeaderboardLoaded(System.Collections.Generic.List<LeaderboardEntry> entries)
+    {
+        DisplayLeaderboard(entries);
+    }
+
+    private void DisplayLeaderboard(System.Collections.Generic.List<LeaderboardEntry> entries)
+    {
+        // 기존 엔트리 삭제
+        foreach (Transform child in _leaderboardEntriesContainer)
+        {
+            Destroy(child.gameObject);
+        }
+
+        float yOffset = 0f;
+        int rank = 1;
+
+        foreach (var entry in entries)
+        {
+            CreateLeaderboardEntry(rank, entry.nickname, entry.score, yOffset);
+            yOffset -= 50f;
+            rank++;
+        }
+
+        // 컨테이너 높이 조정
+        var containerRt = _leaderboardEntriesContainer.GetComponent<RectTransform>();
+        containerRt.sizeDelta = new Vector2(580, Mathf.Max(500, -yOffset + 50));
+    }
+
+    private void CreateLeaderboardEntry(int rank, string nickname, int score, float yOffset)
+    {
+        var entry = new GameObject($"Entry_{rank}");
+        entry.transform.SetParent(_leaderboardEntriesContainer, false);
+        
+        var entryRt = entry.AddComponent<RectTransform>();
+        entryRt.anchorMin = new Vector2(0, 1);
+        entryRt.anchorMax = new Vector2(1, 1);
+        entryRt.pivot = new Vector2(0.5f, 1);
+        entryRt.anchoredPosition = new Vector2(0, yOffset);
+        entryRt.sizeDelta = new Vector2(0, 45);
+
+        // 배경 (상위 3명은 특별한 색상)
+        var bg = entry.AddComponent<Image>();
+        if (rank == 1)
+            bg.color = new Color(1f, 0.84f, 0f, 0.3f); // 금색
+        else if (rank == 2)
+            bg.color = new Color(0.75f, 0.75f, 0.75f, 0.3f); // 은색
+        else if (rank == 3)
+            bg.color = new Color(0.8f, 0.5f, 0.2f, 0.3f); // 동색
+        else
+            bg.color = new Color(1f, 1f, 1f, 0.1f); // 투명
+        
+        bg.sprite = CreateRoundedRectSprite(100, 100, 10);
+        bg.type = Image.Type.Sliced;
+
+        // Rank
+        var rankText = CreateTextElement(entry.transform, $"{rank}.",
+            24, rank <= 3 ? CAT_EYE_GOLD : Color.gray, 
+            new Vector2(-250, 0), new Vector2(60, 45), isPrimary: false);
+        rankText.alignment = TextAlignmentOptions.MidlineLeft;
+        rankText.fontStyle = FontStyles.Bold;
+
+        // Nickname
+        var nicknameText = CreateTextElement(entry.transform, nickname,
+            22, rank <= 3 ? Color.black : Color.gray,
+            new Vector2(-50, 0), new Vector2(300, 45), isPrimary: rank <= 3);
+        nicknameText.alignment = TextAlignmentOptions.MidlineLeft;
+
+        // Score
+        var scoreText = CreateTextElement(entry.transform, score.ToString(),
+            24, rank <= 3 ? CAT_EYE_GOLD : Color.gray,
+            new Vector2(200, 0), new Vector2(120, 45), isPrimary: false);
+        scoreText.alignment = TextAlignmentOptions.MidlineRight;
+        scoreText.fontStyle = FontStyles.Bold;
+    }
+
+    private void ShowPlaceholderLeaderboard()
+    {
+        var placeholderData = new System.Collections.Generic.List<LeaderboardEntry>
+        {
+            new LeaderboardEntry { nickname = "Cat_Master", score = 2500 },
+            new LeaderboardEntry { nickname = "Paw_King", score = 2100 },
+            new LeaderboardEntry { nickname = "Meow_Pro", score = 1850 },
+            new LeaderboardEntry { nickname = "Nyan_Chan", score = 1650 },
+            new LeaderboardEntry { nickname = "Purr_Lord", score = 1420 },
+            new LeaderboardEntry { nickname = "Kitty_Ace", score = 1280 },
+            new LeaderboardEntry { nickname = "Whisker_99", score = 1050 },
+            new LeaderboardEntry { nickname = "Fluffy_Cat", score = 890 },
+            new LeaderboardEntry { nickname = "Shadow_Paw", score = 720 },
+            new LeaderboardEntry { nickname = "Tiger_Claw", score = 650 },
+        };
+        
+        DisplayLeaderboard(placeholderData);
     }
 
     // ─── 플로팅 점수 ───
@@ -1720,6 +2057,150 @@ public class UIManager : MonoBehaviour
             _decorationText.rectTransform.localRotation = Quaternion.Euler(0, 0, decorationRotation);
 
             yield return null;
+        }
+    }
+
+    // ─── 닉네임 입력 ───
+
+    /// <summary>
+    /// 닉네임 입력 UI 생성
+    /// </summary>
+    private void CreateNicknameInput(Transform parent)
+    {
+        // 컨테이너
+        var container = new GameObject("NicknameContainer");
+        container.transform.SetParent(parent, false);
+        var containerRt = container.AddComponent<RectTransform>();
+        containerRt.anchoredPosition = new Vector2(0, -30);
+        containerRt.sizeDelta = new Vector2(500, 60);
+
+        // 라벨 "Nickname:"
+        var label = new GameObject("Label");
+        label.transform.SetParent(container.transform, false);
+        var labelRt = label.AddComponent<RectTransform>();
+        labelRt.anchorMin = new Vector2(0, 0.5f);
+        labelRt.anchorMax = new Vector2(0, 0.5f);
+        labelRt.pivot = new Vector2(0, 0.5f);
+        labelRt.anchoredPosition = new Vector2(0, 0);
+        labelRt.sizeDelta = new Vector2(120, 40);
+
+        var labelText = label.AddComponent<TextMeshProUGUI>();
+        labelText.text = "Nickname:";
+        labelText.fontSize = 24;
+        labelText.color = Color.gray;
+        labelText.alignment = TextAlignmentOptions.MidlineLeft;
+        _secondaryTexts.Add(labelText);
+
+        // 입력 필드
+        var inputFieldGo = new GameObject("InputField");
+        inputFieldGo.transform.SetParent(container.transform, false);
+        var inputFieldRt = inputFieldGo.AddComponent<RectTransform>();
+        inputFieldRt.anchorMin = new Vector2(0, 0.5f);
+        inputFieldRt.anchorMax = new Vector2(1, 0.5f);
+        inputFieldRt.pivot = new Vector2(0, 0.5f);
+        inputFieldRt.anchoredPosition = new Vector2(120, 0);
+        inputFieldRt.sizeDelta = new Vector2(-220, 40);
+
+        // 배경
+        var inputBg = inputFieldGo.AddComponent<Image>();
+        inputBg.color = new Color(1f, 1f, 1f, 0.8f);
+        inputBg.sprite = CreateRoundedRectSprite(100, 100, 10);
+        inputBg.type = Image.Type.Sliced;
+
+        // TMP InputField
+        _nicknameInputField = inputFieldGo.AddComponent<TMP_InputField>();
+        _nicknameInputField.textComponent = CreateInputTextComponent(inputFieldGo.transform);
+        _nicknameInputField.characterLimit = 12;
+        _nicknameInputField.text = _currentNickname;
+
+        // 변경 버튼
+        var changeBtn = new GameObject("ChangeButton");
+        changeBtn.transform.SetParent(container.transform, false);
+        var changeBtnRt = changeBtn.AddComponent<RectTransform>();
+        changeBtnRt.anchorMin = new Vector2(1, 0.5f);
+        changeBtnRt.anchorMax = new Vector2(1, 0.5f);
+        changeBtnRt.pivot = new Vector2(1, 0.5f);
+        changeBtnRt.anchoredPosition = new Vector2(0, 0);
+        changeBtnRt.sizeDelta = new Vector2(90, 40);
+
+        var changeBtnImg = changeBtn.AddComponent<Image>();
+        changeBtnImg.sprite = CreateRoundedRectSprite(100, 100, 10);
+        changeBtnImg.color = CAT_EYE_GOLD;
+        changeBtnImg.type = Image.Type.Sliced;
+
+        _nicknameChangeButton = changeBtn.AddComponent<Button>();
+        _nicknameChangeButton.targetGraphic = changeBtnImg;
+        _nicknameChangeButton.onClick.AddListener(OnNicknameChangeClicked);
+
+        var changeBtnLabel = new GameObject("Label");
+        changeBtnLabel.transform.SetParent(changeBtn.transform, false);
+        var changeBtnLabelRt = changeBtnLabel.AddComponent<RectTransform>();
+        SetFullStretch(changeBtnLabelRt);
+
+        var changeBtnText = changeBtnLabel.AddComponent<TextMeshProUGUI>();
+        changeBtnText.text = "SAVE";
+        changeBtnText.fontSize = 18;
+        changeBtnText.color = new Color(0.2f, 0.2f, 0.2f);
+        changeBtnText.alignment = TextAlignmentOptions.Center;
+        changeBtnText.fontStyle = FontStyles.Bold;
+
+        _secondaryButtons.Add(_nicknameChangeButton);
+    }
+
+    /// <summary>
+    /// InputField용 텍스트 컴포넌트 생성
+    /// </summary>
+    private TextMeshProUGUI CreateInputTextComponent(Transform parent)
+    {
+        var textArea = new GameObject("Text Area");
+        textArea.transform.SetParent(parent, false);
+        var textAreaRt = textArea.AddComponent<RectTransform>();
+        textAreaRt.anchorMin = Vector2.zero;
+        textAreaRt.anchorMax = Vector2.one;
+        textAreaRt.sizeDelta = new Vector2(-10, -10);
+        textAreaRt.anchoredPosition = Vector2.zero;
+
+        var textGo = new GameObject("Text");
+        textGo.transform.SetParent(textArea.transform, false);
+        var textRt = textGo.AddComponent<RectTransform>();
+        SetFullStretch(textRt);
+
+        var tmp = textGo.AddComponent<TextMeshProUGUI>();
+        tmp.fontSize = 20;
+        tmp.color = new Color(0.2f, 0.2f, 0.2f);
+        tmp.alignment = TextAlignmentOptions.MidlineLeft;
+        tmp.margin = new Vector4(5, 0, 5, 0);
+
+        return tmp;
+    }
+
+    /// <summary>
+    /// 닉네임 변경 버튼 클릭
+    /// </summary>
+    private void OnNicknameChangeClicked()
+    {
+        string newNickname = _nicknameInputField.text.Trim();
+        SaveNickname(newNickname);
+        
+        // 피드백
+        Debug.Log($"[UIManager] Nickname saved: {_currentNickname}");
+        
+        // TODO: 저장 완료 피드백 (예: 버튼 텍스트를 잠깐 "SAVED!"로 변경)
+        StartCoroutine(CoShowSavedFeedback());
+    }
+
+    /// <summary>
+    /// 저장 완료 피드백
+    /// </summary>
+    private IEnumerator CoShowSavedFeedback()
+    {
+        var btnText = _nicknameChangeButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (btnText != null)
+        {
+            string original = btnText.text;
+            btnText.text = "SAVED!";
+            yield return new WaitForSeconds(1f);
+            btnText.text = original;
         }
     }
 }

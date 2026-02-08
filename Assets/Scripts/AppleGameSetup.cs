@@ -242,6 +242,14 @@ public class AppleGameSetup : MonoBehaviour
             if (!Application.isPlaying)
                 am.SendMessage("Awake");
         }
+
+        if (GameObject.Find("FirebaseManager") == null)
+        {
+            var go = new GameObject("FirebaseManager");
+            var fm = go.AddComponent<FirebaseManager>();
+            if (!Application.isPlaying)
+                fm.SendMessage("Awake");
+        }
     }
 
     /// <summary>
