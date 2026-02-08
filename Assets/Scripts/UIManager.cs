@@ -34,6 +34,11 @@ public class UIManager : MonoBehaviour
     private List<Button> _secondaryButtons = new List<Button>();
     private List<Button> _successButtons = new List<Button>();
 
+    // 메인 메뉴 요소
+    private TextMeshProUGUI _titleText;
+    private TextMeshProUGUI _subtitleText;
+    private TextMeshProUGUI _decorationText;
+    
     // HUD 요소
     private TextMeshProUGUI _scoreText;
     private TextMeshProUGUI _timerText;
@@ -72,6 +77,8 @@ public class UIManager : MonoBehaviour
     // 공통 색상
     private static readonly Color CAT_EYE_GOLD = new Color(0.95f, 0.78f, 0.10f);
     private static readonly Color CAT_EYE_BRIGHT = new Color(1.0f, 0.85f, 0.20f);
+    private static readonly Color CAT_NOSE_PINK = new Color(1.0f, 0.7f, 0.8f);  // 핑크색 (재시작)
+    private static readonly Color CAT_PAW_CREAM = new Color(0.95f, 0.85f, 0.7f); // 크림색 (홈)
 
     private Canvas _canvas;
 
@@ -185,6 +192,11 @@ public class UIManager : MonoBehaviour
 
         // 버튼 재참조 및 이벤트 재연결
         var buttons = _hudPanel.GetComponentsInChildren<Button>(true);
+        bool hasRestartButton = false;
+        bool hasHomeButton = false;
+        Button hintBtnComponent = null;
+        Button shuffleBtnComponent = null;
+        
         foreach (var btn in buttons)
         {
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
@@ -194,6 +206,7 @@ public class UIManager : MonoBehaviour
                 {
                     _hintButton = btn;
                     _hintButtonText = label;
+                    hintBtnComponent = btn;
                     // 힌트 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => 
@@ -207,9 +220,75 @@ public class UIManager : MonoBehaviour
                 {
                     _shuffleButton = btn;
                     _shuffleButtonText = label;
+                    shuffleBtnComponent = btn;
                     // 셔플 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
+                }
+                else if (label.text.Contains("RESTART"))
+                {
+                    hasRestartButton = true;
+                    // 재시작 버튼 이벤트 재연결
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.RestartGame(); });
+                }
+                else if (label.text.Contains("HOME"))
+                {
+                    hasHomeButton = true;
+                    // 홈 버튼 이벤트 재연결
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { GameManager.Instance?.ReturnToMenu(); });
+                }
+            }
+        }
+        
+        // 재시작, 홈 버튼이 없으면 생성
+        if (!hasRestartButton || !hasHomeButton)
+        {
+            Debug.Log("[UIManager] Restart or Home button missing, creating new buttons...");
+            var bottomBar = _hudPanel.transform.Find("BottomBar");
+            
+            if (bottomBar != null)
+            {
+                // 기존 버튼들의 위치와 크기를 조정 (4개 버튼 배치용)
+                if (hintBtnComponent != null)
+                {
+                    var hintRt = hintBtnComponent.GetComponent<RectTransform>();
+                    hintRt.anchoredPosition = new Vector2(-240, 0);
+                    hintRt.sizeDelta = new Vector2(140, 55);
+                    var hintLabel = hintBtnComponent.GetComponentInChildren<TextMeshProUGUI>();
+                    if (hintLabel != null) hintLabel.fontSize = 20;
+                }
+                
+                if (shuffleBtnComponent != null)
+                {
+                    var shuffleRt = shuffleBtnComponent.GetComponent<RectTransform>();
+                    shuffleRt.anchoredPosition = new Vector2(-80, 0);
+                    shuffleRt.sizeDelta = new Vector2(140, 55);
+                    var shuffleLabel = shuffleBtnComponent.GetComponentInChildren<TextMeshProUGUI>();
+                    if (shuffleLabel != null) shuffleLabel.fontSize = 20;
+                }
+                
+                if (!hasRestartButton)
+                {
+                    var restartBtnGo = CreateButton(bottomBar.transform, "RESTART", CAT_NOSE_PINK,
+                        new Vector2(80, 0), new Vector2(140, 55), 18, () =>
+                        {
+                            GameManager.Instance?.RestartGame();
+                        });
+                    _secondaryButtons.Add(restartBtnGo.GetComponent<Button>());
+                    Debug.Log("[UIManager] Restart button created");
+                }
+                
+                if (!hasHomeButton)
+                {
+                    var homeBtnGo = CreateButton(bottomBar.transform, "HOME", CAT_PAW_CREAM,
+                        new Vector2(240, 0), new Vector2(140, 55), 18, () =>
+                        {
+                            GameManager.Instance?.ReturnToMenu();
+                        });
+                    _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
+                    Debug.Log("[UIManager] Home button created");
                 }
             }
         }
@@ -306,10 +385,11 @@ public class UIManager : MonoBehaviour
         // 여전히 못 찾았으면 카운트다운 패널 재생성
         if (_countdownText == null || _countdownCatFace == null)
         {
-            Debug.LogError("[UIManager] Failed to find countdown elements! Recreating CountdownPanel...");
+            Debug.LogWarning("[UIManager] Countdown elements not found. Recreating CountdownPanel...");
             if (_countdownPanel != null)
                 Destroy(_countdownPanel);
             CreateCountdownPanel();
+            Debug.Log("[UIManager] CountdownPanel recreated successfully.");
         }
 
         // 결과 화면 요소
@@ -338,6 +418,18 @@ public class UIManager : MonoBehaviour
                 _menuBestScoreText = txt;
             else if (txt.text == "☀" || txt.text == "☾")
                 _themeToggleText = txt;
+            else if (txt.text.Contains("PAW 10"))
+                _titleText = txt;
+            else if (txt.text.Contains("Drag paws"))
+                _subtitleText = txt;
+            else if (txt.text.Contains("=^._.^="))
+                _decorationText = txt;
+        }
+        
+        // 타이틀 애니메이션 시작
+        if (_titleText != null && _subtitleText != null && _decorationText != null)
+        {
+            StartCoroutine(CoAnimateMenuTitle());
         }
 
         // 메인메뉴 버튼 재연결 (중요!)
@@ -571,19 +663,22 @@ public class UIManager : MonoBehaviour
         CreateCatSilhouette(_mainMenuPanel.transform, new Vector2(0, 300), new Vector2(200, 200));
 
         // 타이틀
-        var title = CreateTextElement(_mainMenuPanel.transform, "PAW 10",
+        _titleText = CreateTextElement(_mainMenuPanel.transform, "PAW 10",
             72, CAT_EYE_GOLD, new Vector2(0, 150), new Vector2(800, 100), isPrimary: false);
-        title.fontStyle = FontStyles.Bold;
+        _titleText.fontStyle = FontStyles.Bold;
 
         // 부제
-        var subtitle = CreateTextElement(_mainMenuPanel.transform, "Drag paws that sum to 10!",
+        _subtitleText = CreateTextElement(_mainMenuPanel.transform, "Drag paws that sum to 10!",
             22, Color.gray, new Vector2(0, 80), new Vector2(700, 50), isPrimary: false);
-        _secondaryTexts.Add(subtitle);
+        _secondaryTexts.Add(_subtitleText);
 
         // 고양이 장식
-        var decoration = CreateTextElement(_mainMenuPanel.transform, "~  =^._.^=  ~",
+        _decorationText = CreateTextElement(_mainMenuPanel.transform, "~  =^._.^=  ~",
             28, Color.gray, new Vector2(0, 30), new Vector2(400, 50), isPrimary: false);
-        _secondaryTexts.Add(decoration);
+        _secondaryTexts.Add(_decorationText);
+        
+        // 타이틀 애니메이션 시작
+        StartCoroutine(CoAnimateMenuTitle());
 
         // Play 버튼
         var playBtn = CreateButton(_mainMenuPanel.transform, "PLAY", Color.white,
@@ -738,7 +833,7 @@ public class UIManager : MonoBehaviour
 
         // 힌트 버튼
         var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", Color.white,
-            new Vector2(-120, 0), new Vector2(180, 55), 22, () =>
+            new Vector2(-240, 0), new Vector2(140, 55), 20, () =>
             {
                 Debug.Log("[UIManager] HINT button clicked (CreateButton)!");
                 GameManager.Instance?.UseHint();
@@ -749,13 +844,29 @@ public class UIManager : MonoBehaviour
 
         // 셔플 버튼
         var shuffleBtnGo = CreateButton(bottomBar.transform, "SHUFFLE (2)", Color.white,
-            new Vector2(120, 0), new Vector2(180, 55), 22, () =>
+            new Vector2(-80, 0), new Vector2(140, 55), 20, () =>
             {
                 GameManager.Instance?.UseShuffle();
             });
         _shuffleButton = shuffleBtnGo.GetComponent<Button>();
         _shuffleButtonText = shuffleBtnGo.GetComponentInChildren<TextMeshProUGUI>();
         _successButtons.Add(_shuffleButton);
+
+        // 재시작 버튼
+        var restartBtnGo = CreateButton(bottomBar.transform, "RESTART", CAT_NOSE_PINK,
+            new Vector2(80, 0), new Vector2(140, 55), 18, () =>
+            {
+                GameManager.Instance?.RestartGame();
+            });
+        _secondaryButtons.Add(restartBtnGo.GetComponent<Button>());
+
+        // 홈 버튼
+        var homeBtnGo = CreateButton(bottomBar.transform, "HOME", CAT_PAW_CREAM,
+            new Vector2(240, 0), new Vector2(140, 55), 18, () =>
+            {
+                GameManager.Instance?.ReturnToMenu();
+            });
+        _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
 
         // HUD 테마 토글 버튼 (우측 상단, 메인 메뉴와 동일 위치)
         var hudThemeBtn = new GameObject("HUDThemeToggle");
@@ -1448,6 +1559,7 @@ public class UIManager : MonoBehaviour
         rt.sizeDelta = sizeDelta;
 
         var img = go.AddComponent<Image>();
+        img.sprite = CreateRoundedRectSprite(100, 100, 20); // 둥근 네모 스프라이트
         img.color = bgColor;
         img.type = Image.Type.Sliced;
         img.pixelsPerUnitMultiplier = 1;
@@ -1468,11 +1580,95 @@ public class UIManager : MonoBehaviour
         var tmp = textGo.AddComponent<TextMeshProUGUI>();
         tmp.text = label;
         tmp.fontSize = fontSize;
-        tmp.color = Color.white;
+        
+        // 배경색이 밝으면 검은 텍스트, 어두우면 흰 텍스트
+        float brightness = bgColor.r * 0.299f + bgColor.g * 0.587f + bgColor.b * 0.114f;
+        tmp.color = brightness > 0.5f ? new Color(0.2f, 0.2f, 0.2f) : Color.white;
+        
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.fontStyle = FontStyles.Bold;
 
         return go;
+    }
+
+    /// <summary>
+    /// 둥근 네모 스프라이트를 프로그래매틱하게 생성합니다
+    /// </summary>
+    private Sprite CreateRoundedRectSprite(int width, int height, int cornerRadius)
+    {
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        
+        // 모든 픽셀을 투명하게 초기화
+        var pixels = new Color[width * height];
+        for (int i = 0; i < pixels.Length; i++)
+            pixels[i] = Color.clear;
+
+        // 둥근 네모 그리기
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                bool isInside = false;
+
+                // 모서리 영역 체크
+                float dx = 0, dy = 0;
+
+                // 좌상단
+                if (x < cornerRadius && y < cornerRadius)
+                {
+                    dx = cornerRadius - x;
+                    dy = cornerRadius - y;
+                    isInside = (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+                }
+                // 우상단
+                else if (x >= width - cornerRadius && y < cornerRadius)
+                {
+                    dx = x - (width - cornerRadius - 1);
+                    dy = cornerRadius - y;
+                    isInside = (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+                }
+                // 좌하단
+                else if (x < cornerRadius && y >= height - cornerRadius)
+                {
+                    dx = cornerRadius - x;
+                    dy = y - (height - cornerRadius - 1);
+                    isInside = (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+                }
+                // 우하단
+                else if (x >= width - cornerRadius && y >= height - cornerRadius)
+                {
+                    dx = x - (width - cornerRadius - 1);
+                    dy = y - (height - cornerRadius - 1);
+                    isInside = (dx * dx + dy * dy) <= (cornerRadius * cornerRadius);
+                }
+                // 모서리가 아닌 영역은 모두 포함
+                else
+                {
+                    isInside = true;
+                }
+
+                if (isInside)
+                    pixels[y * width + x] = Color.white;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+
+        // 9-slice를 위한 border 설정
+        var border = new Vector4(cornerRadius, cornerRadius, cornerRadius, cornerRadius);
+        var sprite = Sprite.Create(
+            texture,
+            new Rect(0, 0, width, height),
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0,
+            SpriteMeshType.FullRect,
+            border
+        );
+
+        return sprite;
     }
 
     private void SetFullStretch(RectTransform rt)
@@ -1481,5 +1677,49 @@ public class UIManager : MonoBehaviour
         rt.anchorMax = Vector2.one;
         rt.sizeDelta = Vector2.zero;
         rt.anchoredPosition = Vector2.zero;
+    }
+
+    // ─── 메인 메뉴 애니메이션 ───
+
+    /// <summary>
+    /// 메인 메뉴 타이틀 애니메이션 (부드러운 파동 효과)
+    /// </summary>
+    private IEnumerator CoAnimateMenuTitle()
+    {
+        if (_titleText == null || _subtitleText == null || _decorationText == null)
+            yield break;
+
+        Vector3 titleStartPos = _titleText.rectTransform.anchoredPosition;
+        Vector3 subtitleStartPos = _subtitleText.rectTransform.anchoredPosition;
+        Vector3 decorationStartPos = _decorationText.rectTransform.anchoredPosition;
+
+        float time = 0f;
+
+        while (true)
+        {
+            time += Time.deltaTime;
+
+            // 타이틀: 위아래로 부드럽게 흔들리기
+            float titleOffset = Mathf.Sin(time * 1.5f) * 15f;
+            _titleText.rectTransform.anchoredPosition = titleStartPos + new Vector3(0, titleOffset, 0);
+            
+            // 약간의 크기 변화
+            float titleScale = 1f + Mathf.Sin(time * 1.5f) * 0.05f;
+            _titleText.rectTransform.localScale = Vector3.one * titleScale;
+
+            // 부제: 타이틀보다 약간 느리게, 반대 방향
+            float subtitleOffset = Mathf.Sin(time * 1.2f + 0.5f) * 8f;
+            _subtitleText.rectTransform.anchoredPosition = subtitleStartPos + new Vector3(0, subtitleOffset, 0);
+
+            // 고양이 장식: 좌우로 살짝 흔들리기
+            float decorationOffset = Mathf.Sin(time * 2f) * 5f;
+            _decorationText.rectTransform.anchoredPosition = decorationStartPos + new Vector3(decorationOffset, 0, 0);
+            
+            // 회전도 살짝
+            float decorationRotation = Mathf.Sin(time * 2f) * 3f;
+            _decorationText.rectTransform.localRotation = Quaternion.Euler(0, 0, decorationRotation);
+
+            yield return null;
+        }
     }
 }

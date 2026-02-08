@@ -91,9 +91,13 @@ public class AudioManager : MonoBehaviour
             // 특정 효과음의 볼륨 조정 (필요시 여기서 수정)
             float volumeMultiplier = 1.0f;
             
-            // 예시: countdown 효과음을 1.5배 크게
+            // countdown 효과음을 1.5배 크게
             if (name == "countdown")
                 volumeMultiplier = 1.5f;
+            
+            // fail 효과음을 0.25배 작게 (조용하게)
+            else if (name == "fail" || name == "hiss")
+                volumeMultiplier = 0.25f;
             
             // 예시: meow 효과음을 2배 크게
             // if (name == "meow" || name == "success")

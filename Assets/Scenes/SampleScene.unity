@@ -4494,6 +4494,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e21c7274665434a4cb6b5f717b5767df, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  floatingScoreFont: {fileID: 11400000, guid: 854e1b2826df1dd4c884895484a402fc, type: 2}
+  floatingScoreFontSize: 6
 --- !u!114 &1318701580
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6298,9 +6300,9 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 0}
+  m_Resource: {fileID: 8300000, guid: d92df4196757edc468497d41476e450b, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 0.8
+  m_Volume: 0.1
   m_Pitch: 1
   Loop: 0
   Mute: 0
@@ -6397,7 +6399,7 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 8300000, guid: a54a17ebbceddac4ca10cb5388ebc9fe, type: 3}
   m_PlayOnAwake: 0
-  m_Volume: 0.8
+  m_Volume: 1
   m_Pitch: 1
   Loop: 1
   Mute: 0
@@ -6501,7 +6503,7 @@ MonoBehaviour:
   GameOverClip: {fileID: 0}
   ButtonClickClip: {fileID: 0}
   BGMVolume: 0.5
-  SFXVolume: 0.8
+  SFXVolume: 1
 --- !u!4 &1947988446
 Transform:
   m_ObjectHideFlags: 0
