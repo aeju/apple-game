@@ -51,6 +51,11 @@ public class UIManager : MonoBehaviour
     private TextMeshProUGUI _subtitleText;
     private TextMeshProUGUI _decorationText;
     
+    [Header("고양이 로고 애니메이션")]
+    [SerializeField] private GameObject catSilhouetteObject; // Inspector에서 할당 가능 (씬에 있는 CatSilhouette 오브젝트)
+    private GameObject _catSilhouette; // 실제 참조 (자동 찾기 또는 할당)
+    private bool _catSilhouetteAnimating = false; // 애니메이션 실행 중 플래그
+    
     // HUD 요소
     private TextMeshProUGUI _scoreText;
     private TextMeshProUGUI _scoreLabelText; // "SCORE" 라벨
@@ -93,6 +98,12 @@ public class UIManager : MonoBehaviour
     // 랭킹
     private GameObject _leaderboardPanel;
     private Transform _leaderboardEntriesContainer;
+    private GameObject _previousActivePanel; // 리더보드 열기 전 활성화된 패널
+    
+    // 현재 게임 세션 점수 (닉네임 변경 시 재제출용)
+    private int _currentSessionScore = 0;
+    private int _currentSessionCombo = 0;
+    private string _lastSubmittedNickname = "";
 
     // 공통 색상
     private static readonly Color CAT_EYE_GOLD = new Color(0.95f, 0.78f, 0.10f);
@@ -338,6 +349,7 @@ public class UIManager : MonoBehaviour
         bool hasHomeButton = false;
         bool hasHintButton = false;
         bool hasShuffleButton = false;
+        bool hasThemeToggle = false;
         Button hintBtnComponent = null;
         Button shuffleBtnComponent = null;
         
@@ -397,6 +409,49 @@ public class UIManager : MonoBehaviour
                     
                     // 버튼 색상 초기화 (크림색)
                     ResetButtonColor(btn, CAT_PAW_CREAM);
+                }
+                // ⭐ HUD 테마 토글 버튼 찾기 (이모지 또는 DAY/NIGHT 텍스트)
+                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
+                {
+                    hasThemeToggle = true;
+                    _hudThemeToggleButton = btn;
+                    _hudThemeToggleText = label;
+                    
+                    // ⭐ 이모지를 텍스트로 강제 변경
+                    label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+                    
+                    // 텍스트 크기 조정
+                    label.fontSize = 15;
+                    label.color = new Color(0.2f, 0.2f, 0.2f);
+                    label.alignment = TextAlignmentOptions.Center;
+                    label.fontStyle = FontStyles.Bold;
+                    
+                    // 버튼 크기 조정
+                    var btnRt = btn.GetComponent<RectTransform>();
+                    if (btnRt != null)
+                        btnRt.sizeDelta = new Vector2(120, 50);
+                    
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => 
+                    { 
+                        PlayButtonSound(); 
+                        Debug.Log("[UIManager] HUD Theme toggle clicked!");
+                        ThemeManager.Instance?.ToggleTheme(); 
+                    });
+                    
+                    // 버튼 배경 투명하게
+                    var img = btn.GetComponent<Image>();
+                    if (img != null)
+                    {
+                        img.color = new Color(1f, 1f, 1f, 0f);
+                        var colors = btn.colors;
+                        colors.normalColor = new Color(1f, 1f, 1f, 0f);
+                        colors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
+                        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
+                        btn.colors = colors;
+                    }
+                    
+                    Debug.Log("[UIManager] ✅ HUD Theme toggle button found and reconnected!");
                 }
             }
         }
@@ -476,6 +531,54 @@ public class UIManager : MonoBehaviour
                 _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
                 Debug.Log("[UIManager] Home button created");
             }
+        }
+        
+        // ⭐ HUD 테마 토글 버튼이 없으면 생성
+        if (!hasThemeToggle)
+        {
+            Debug.Log("[UIManager] HUD Theme toggle button not found, creating...");
+            
+            var hudThemeBtn = new GameObject("HUDThemeToggle");
+            hudThemeBtn.transform.SetParent(_hudPanel.transform, false);
+            var hudThemeBtnRt = hudThemeBtn.AddComponent<RectTransform>();
+            hudThemeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
+            hudThemeBtnRt.anchorMax = new Vector2(1, 1);
+            hudThemeBtnRt.pivot = new Vector2(1, 1);
+            hudThemeBtnRt.anchoredPosition = new Vector2(-20, -20); // 우측 상단에서 20px 안쪽
+            hudThemeBtnRt.sizeDelta = new Vector2(120, 50);
+
+            var hudThemeBtnImg = hudThemeBtn.AddComponent<Image>();
+            hudThemeBtnImg.color = new Color(1f, 1f, 1f, 0f); // 투명
+            hudThemeBtnImg.type = Image.Type.Sliced;
+
+            var hudThemeBtnComp = hudThemeBtn.AddComponent<Button>();
+            var hudThemeBtnColors = hudThemeBtnComp.colors;
+            hudThemeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f); // 투명
+            hudThemeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
+            hudThemeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
+            hudThemeBtnComp.colors = hudThemeBtnColors;
+            hudThemeBtnComp.onClick.AddListener(() => 
+            { 
+                PlayButtonSound(); 
+                Debug.Log("[UIManager] HUD Theme toggle clicked!");
+                ThemeManager.Instance?.ToggleTheme(); 
+            });
+
+            var hudThemeBtnTextGo = new GameObject("Label");
+            hudThemeBtnTextGo.transform.SetParent(hudThemeBtn.transform, false);
+            var hudThemeBtnTextRt = hudThemeBtnTextGo.AddComponent<RectTransform>();
+            SetFullStretch(hudThemeBtnTextRt);
+            _hudThemeToggleText = hudThemeBtnTextGo.AddComponent<TextMeshProUGUI>();
+            _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+            _hudThemeToggleText.fontSize = 15;
+            _hudThemeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
+            _hudThemeToggleText.alignment = TextAlignmentOptions.Center;
+            _hudThemeToggleText.fontStyle = FontStyles.Bold;
+
+            _hudThemeToggleButton = hudThemeBtnComp;
+            _secondaryButtons.Add(_hudThemeToggleButton);
+            
+            Debug.Log("[UIManager] ✅ HUD Theme toggle button created!");
         }
 
         // BGM 컨트롤 재참조 또는 생성
@@ -666,6 +769,8 @@ public class UIManager : MonoBehaviour
         {
             StartCoroutine(CoAnimateMenuTitle());
         }
+        
+        // 고양이 로고는 Start()의 InitializeCatSilhouette()에서 처리됨
 
         // 메인메뉴 버튼 재연결 (중요!)
         var menuButtons = _mainMenuPanel.GetComponentsInChildren<Button>(true);
@@ -727,16 +832,20 @@ public class UIManager : MonoBehaviour
                     // 폰트 크기 적용
                     label.fontSize = menuButtonFontSize;
                 }
-                else if (label.text == "DAY" || label.text == "NIGHT")
+                // ⭐ 메인 메뉴 테마 토글 (이모지 또는 DAY/NIGHT 텍스트)
+                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
                 {
                     _themeToggleButton = btn;
                     _themeToggleText = label;
                     
-                    // ⭐ 이모지가 아닌 텍스트로 강제 변경
+                    // ⭐ 이모지를 텍스트로 강제 변경
                     label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
                     
-                    // 텍스트 크기 조정 (3배)
+                    // 텍스트 크기 조정
                     label.fontSize = 15;
+                    label.color = new Color(0.2f, 0.2f, 0.2f);
+                    label.alignment = TextAlignmentOptions.Center;
+                    label.fontStyle = FontStyles.Bold;
                     
                     // 버튼 크기 조정
                     var btnRt = btn.GetComponent<RectTransform>();
@@ -747,7 +856,7 @@ public class UIManager : MonoBehaviour
                     btn.onClick.AddListener(() =>
                     {
                         PlayButtonSound();
-                        Debug.Log("[UIManager] Theme toggle clicked!");
+                        Debug.Log("[UIManager] Main menu theme toggle clicked!");
                         ThemeManager.Instance?.ToggleTheme();
                     });
                     
@@ -762,6 +871,8 @@ public class UIManager : MonoBehaviour
                         colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
                         btn.colors = colors;
                     }
+                    
+                    Debug.Log("[UIManager] ✅ Main menu theme toggle button reconnected!");
                 }
             }
         }
@@ -890,16 +1001,20 @@ public class UIManager : MonoBehaviour
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
                 }
-                else if (label.text == "DAY" || label.text == "NIGHT")
+                // ⭐ HUD 테마 토글 (이모지 또는 DAY/NIGHT 텍스트)
+                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
                 {
                     _hudThemeToggleButton = btn;
                     _hudThemeToggleText = label;
                     
-                    // ⭐ 이모지가 아닌 텍스트로 강제 변경
+                    // ⭐ 이모지를 텍스트로 강제 변경
                     label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
                     
-                    // 텍스트 크기 조정 (3배)
+                    // 텍스트 크기 조정
                     label.fontSize = 15;
+                    label.color = new Color(0.2f, 0.2f, 0.2f);
+                    label.alignment = TextAlignmentOptions.Center;
+                    label.fontStyle = FontStyles.Bold;
                     
                     // 버튼 크기 조정
                     var btnRt = btn.GetComponent<RectTransform>();
@@ -907,7 +1022,12 @@ public class UIManager : MonoBehaviour
                         btnRt.sizeDelta = new Vector2(120, 50);
                     
                     btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+                    btn.onClick.AddListener(() => 
+                    { 
+                        PlayButtonSound(); 
+                        Debug.Log("[UIManager] HUD Theme toggle clicked (hudButtons2)!");
+                        ThemeManager.Instance?.ToggleTheme(); 
+                    });
                     
                     // 버튼 배경 투명하게
                     var img = btn.GetComponent<Image>();
@@ -920,6 +1040,8 @@ public class UIManager : MonoBehaviour
                         colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
                         btn.colors = colors;
                     }
+                    
+                    Debug.Log("[UIManager] ✅ HUD Theme toggle button reconnected (hudButtons2)!");
                 }
             }
         }
@@ -946,6 +1068,16 @@ public class UIManager : MonoBehaviour
                     
                     // 버튼 색상 초기화
                     ResetButtonColor(btn, CAT_EYE_GOLD);
+                }
+                else if (label.text == "RANKING")
+                {
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(() => { PlayButtonSound(); ShowLeaderboard(); });
+                    
+                    // 버튼 색상 초기화
+                    ResetButtonColor(btn, CAT_EYE_GOLD);
+                    
+                    Debug.Log("[UIManager] ✅ RANKING button reconnected in Result Panel");
                 }
             }
         }
@@ -988,6 +1120,57 @@ public class UIManager : MonoBehaviour
         }
 
         Debug.Log($"[UIManager] _scoreText is null: {_scoreText == null}");
+        
+        // ⭐ 고양이 로고 찾기 및 애니메이션 시작
+        InitializeCatSilhouette();
+    }
+    
+    /// <summary>
+    /// 고양이 로고 초기화 및 애니메이션 시작
+    /// </summary>
+    private void InitializeCatSilhouette()
+    {
+        // 0. 이미 설정되어 있으면 바로 애니메이션 시작
+        if (_catSilhouette != null)
+        {
+            Debug.Log("[UIManager] ✅ Cat silhouette already set (from CreateMainMenuPanel)!");
+        }
+        // 1. Inspector에서 할당된 것이 있으면 사용
+        else if (catSilhouetteObject != null)
+        {
+            _catSilhouette = catSilhouetteObject;
+            Debug.Log("[UIManager] ✅ Cat silhouette assigned from Inspector!");
+        }
+        // 2. 할당되지 않았으면 자동으로 찾기
+        else if (_mainMenuPanel != null)
+        {
+            var catSilhouetteTransform = _mainMenuPanel.transform.Find("CatSilhouette");
+            if (catSilhouetteTransform != null)
+            {
+                _catSilhouette = catSilhouetteTransform.gameObject;
+                Debug.Log("[UIManager] ✅ Cat silhouette found automatically in MainMenuPanel!");
+            }
+            else
+            {
+                Debug.LogWarning("[UIManager] ⚠️ Cat silhouette not found! Please assign 'catSilhouetteObject' in Inspector or ensure 'CatSilhouette' object exists in MainMenuPanel.");
+            }
+        }
+        
+        // 3. 찾았으면 애니메이션 시작 (이미 실행 중이 아닐 때만)
+        if (_catSilhouette != null && !_catSilhouetteAnimating)
+        {
+            StartCoroutine(CoAnimateCatSilhouette());
+            _catSilhouetteAnimating = true;
+            Debug.Log("[UIManager] 🐱 Cat silhouette animation started!");
+        }
+        else if (_catSilhouetteAnimating)
+        {
+            Debug.Log("[UIManager] ℹ️ Cat silhouette animation already running.");
+        }
+        else
+        {
+            Debug.LogError("[UIManager] ❌ Cat silhouette could not be initialized! Animation will not start.");
+        }
     }
 
     // ─── 테마 전환 ───
@@ -1158,7 +1341,21 @@ public class UIManager : MonoBehaviour
         Debug.Log($"[UIManager] MainMenu active: {_mainMenuPanel?.activeSelf}");
 
         if (state == GameState.Menu)
+        {
             UpdateMenuBestScore();
+            // 새 게임 시작 시 세션 점수 리셋
+            _currentSessionScore = 0;
+            _currentSessionCombo = 0;
+            _lastSubmittedNickname = "";
+        }
+        
+        if (state == GameState.Countdown)
+        {
+            // 게임 시작 시 세션 점수 리셋
+            _currentSessionScore = 0;
+            _currentSessionCombo = 0;
+            _lastSubmittedNickname = "";
+        }
 
         if (state == GameState.GameOver)
             PopulateResult();
@@ -1192,6 +1389,9 @@ public class UIManager : MonoBehaviour
         
         // 타이틀 애니메이션 시작
         StartCoroutine(CoAnimateMenuTitle());
+        
+        // ⭐ 고양이 로고 애니메이션 시작
+        StartCoroutine(CoAnimateCatSilhouette());
 
         // Play 버튼
         var playBtn = CreateButton(_mainMenuPanel.transform, "PLAY", Color.white,
@@ -1632,9 +1832,6 @@ public class UIManager : MonoBehaviour
         int minutes = Mathf.FloorToInt(time / 60f);
         int seconds = Mathf.FloorToInt(time % 60f);
         _timerText.text = $"{minutes}:{seconds:D2}";
-        
-        // 항상 검정색 유지 (다크모드에서도)
-        _timerText.color = new Color(0.17f, 0.17f, 0.18f);
 
         // 슬라이더 업데이트 (원작 스타일)
         if (_timerSlider != null && GameManager.Instance != null)
@@ -1673,11 +1870,17 @@ public class UIManager : MonoBehaviour
             }
         }
 
-        // 텍스트 색상 (30초 이하 경고)
+        // ⭐ 텍스트 색상 (항상 검정색, 30초 이하일 때만 경고색)
         if (time <= 30f)
+        {
+            // 30초 이하: 빨강-금색 깜빡임
             _timerText.color = Color.Lerp(new Color(1f, 0.3f, 0.3f), CAT_EYE_GOLD, Mathf.PingPong(Time.time * 2f, 1f));
+        }
         else
-            _timerText.color = ThemeManager.Instance.GetColor("TextPrimary");
+        {
+            // 30초 이상: 항상 검정색 (다크모드에서도)
+            _timerText.color = new Color(0.17f, 0.17f, 0.18f);
+        }
     }
 
     private void UpdateCombo(int combo, int maxCombo)
@@ -1841,6 +2044,14 @@ public class UIManager : MonoBehaviour
             36, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
         _resultNewRecordText.fontStyle = FontStyles.Bold;
 
+        // 랭킹 버튼 (새로 추가)
+        var rankingBtn = CreateButton(_resultPanel.transform, "RANKING", CAT_EYE_GOLD,
+            new Vector2(0, -250), new Vector2(280, 60), 24, () =>
+            {
+                ShowLeaderboard();
+            });
+        _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+        
         var retryBtn = CreateButton(_resultPanel.transform, "RETRY", Color.white,
             new Vector2(-180, -170), new Vector2(240, 65), 26, () =>
             {
@@ -1880,6 +2091,12 @@ public class UIManager : MonoBehaviour
         _resultApplesText.text = $"Paws: {sm.ApplesRemoved}";
         _resultComboText.text = $"Max Combo: {sm.MaxCombo}";
         _resultBestText.text = $"Best: {sm.BestScore}";
+        
+        // ⭐ 현재 게임 세션 점수 저장 (닉네임 변경 시 재제출용)
+        _currentSessionScore = sm.Score;
+        _currentSessionCombo = sm.MaxCombo;
+        _lastSubmittedNickname = _currentNickname;
+        Debug.Log($"[UIManager] 💾 Current session saved: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
 
         if (sm.Score <= 30)
             _resultCatFace.text = "=_=   Meh...";
@@ -1978,8 +2195,26 @@ public class UIManager : MonoBehaviour
     {
         if (_leaderboardPanel != null)
         {
+            // ⭐ 현재 활성화된 패널 저장 (돌아갈 곳)
+            if (_mainMenuPanel != null && _mainMenuPanel.activeSelf)
+            {
+                _previousActivePanel = _mainMenuPanel;
+                Debug.Log("[UIManager] 📍 Leaderboard opened from Main Menu");
+            }
+            else if (_resultPanel != null && _resultPanel.activeSelf)
+            {
+                _previousActivePanel = _resultPanel;
+                Debug.Log("[UIManager] 📍 Leaderboard opened from Result Panel");
+            }
+            else
+            {
+                _previousActivePanel = _mainMenuPanel; // 기본값
+                Debug.Log("[UIManager] 📍 Leaderboard opened (default to Main Menu)");
+            }
+            
             _leaderboardPanel.SetActive(true);
             _mainMenuPanel?.SetActive(false);
+            _resultPanel?.SetActive(false);
             
             Debug.Log("[UIManager] ShowLeaderboard called");
             
@@ -2039,7 +2274,19 @@ public class UIManager : MonoBehaviour
         if (_leaderboardPanel != null)
         {
             _leaderboardPanel.SetActive(false);
-            _mainMenuPanel?.SetActive(true);
+            
+            // ⭐ 이전에 활성화되었던 패널로 돌아가기
+            if (_previousActivePanel != null)
+            {
+                _previousActivePanel.SetActive(true);
+                Debug.Log($"[UIManager] 🔙 Returning to {_previousActivePanel.name}");
+            }
+            else
+            {
+                // 이전 패널 정보가 없으면 메인 메뉴로 (안전장치)
+                _mainMenuPanel?.SetActive(true);
+                Debug.Log("[UIManager] 🔙 Returning to Main Menu (fallback)");
+            }
         }
     }
 
@@ -2240,6 +2487,9 @@ public class UIManager : MonoBehaviour
         img.sprite = GenerateCatHeadSprite(256);
         img.preserveAspect = true;
         img.raycastTarget = false;
+        
+        // ⭐ 애니메이션을 위해 저장
+        _catSilhouette = go;
     }
 
     private static Sprite GenerateCatHeadSprite(int texSize)
@@ -2588,6 +2838,40 @@ public class UIManager : MonoBehaviour
             yield return null;
         }
     }
+    
+    /// <summary>
+    /// 고양이 로고 펄스 애니메이션 (커졌다 작아졌다)
+    /// </summary>
+    private IEnumerator CoAnimateCatSilhouette()
+    {
+        if (_catSilhouette == null)
+        {
+            Debug.LogWarning("[UIManager] ⚠️ CoAnimateCatSilhouette: _catSilhouette is null!");
+            _catSilhouetteAnimating = false;
+            yield break;
+        }
+        
+        Debug.Log($"[UIManager] 🐱 Cat silhouette animation loop started for '{_catSilhouette.name}'");
+        float time = 0f;
+        
+        while (true)
+        {
+            if (_catSilhouette == null) // 안전 체크
+            {
+                Debug.LogWarning("[UIManager] Cat silhouette destroyed during animation!");
+                _catSilhouetteAnimating = false;
+                yield break;
+            }
+            
+            time += Time.deltaTime;
+            
+            // 🐱 부드럽게 커졌다 작아졌다 (0.9배 ~ 1.1배)
+            float scale = 1f + Mathf.Sin(time * 1.2f) * 0.1f;
+            _catSilhouette.transform.localScale = Vector3.one * scale;
+            
+            yield return null;
+        }
+    }
 
     // ─── 닉네임 입력 ───
 
@@ -2731,11 +3015,32 @@ public class UIManager : MonoBehaviour
         string verified = PlayerPrefs.GetString("PlayerNickname", "NOT_FOUND");
         Debug.Log($"[UIManager] 🔍 PlayerPrefs verification after save: '{verified}'");
         
-        // 닉네임이 바뀌었다는 것만 알림 (다음 게임부터 적용)
+        // ⭐ 닉네임이 바뀌었으면 현재 게임 점수를 새 닉네임으로 다시 제출
         if (oldNickname != _currentNickname)
         {
             Debug.Log($"[UIManager] ✅ Nickname changed! '{oldNickname}' → '{_currentNickname}'");
-            Debug.Log($"[UIManager] Will be used for next game!");
+            
+            // 현재 게임 세션의 점수를 새 닉네임으로 재제출
+            if (_currentSessionScore > 0)
+            {
+                Debug.Log($"[UIManager] 📤 Re-submitting score with new nickname: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
+                
+                // 로컬 랭킹에 재제출
+                if (LocalLeaderboardManager.Instance != null)
+                {
+                    LocalLeaderboardManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
+                    Debug.Log($"[UIManager] ✅ Score re-submitted to local leaderboard with new nickname");
+                }
+                
+                // Firebase에도 재제출
+                if (FirebaseManager.Instance != null)
+                {
+                    FirebaseManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
+                    Debug.Log($"[UIManager] ✅ Score re-submitted to Firebase with new nickname");
+                }
+                
+                _lastSubmittedNickname = _currentNickname;
+            }
         }
         else
         {

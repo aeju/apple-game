@@ -4383,6 +4383,7 @@ MonoBehaviour:
   menuButtonFont: {fileID: 11400000, guid: b089eb35f39ab414a8cfae53d76ea305, type: 2}
   menuButtonFontSize: 36
   buttonClickSound: {fileID: 8300000, guid: 6cdbf268558f31348b1620dc9e79578b, type: 3}
+  catSilhouetteObject: {fileID: 368534493}
 --- !u!114 &1318701580
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,26 +1,30 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System;
-using System.Threading.Tasks;
 
-// Firebase SDK 임포트
+#if !UNITY_WEBGL || UNITY_EDITOR
+// Firebase SDK 임포트 (WebGL 빌드에서는 제외)
+using System.Threading.Tasks;
 using Firebase;
 using Firebase.Auth;
 using Firebase.Firestore;
 using Firebase.Extensions;
+#endif
 
 /// <summary>
 /// Firebase 연동 관리자 (Firestore 사용)
-/// WebGL 빌드용 - 온라인 랭킹 시스템
+/// WebGL 빌드에서는 로컬 랭킹만 사용
 /// </summary>
 public class FirebaseManager : MonoBehaviour
 {
     public static FirebaseManager Instance { get; private set; }
 
+#if !UNITY_WEBGL || UNITY_EDITOR
     private bool _isInitialized = false;
     private string _userId = null;
     private FirebaseFirestore _db;
     private FirebaseAuth _auth;
+#endif
 
     private void Awake()
     {
@@ -32,11 +36,17 @@ public class FirebaseManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // WebGL 빌드용 - Firebase SDK 초기화 스킵
-        Debug.Log("[FirebaseManager] WebGL build - using local leaderboard only");
-        // InitializeFirebase(); // 주석 처리
+#if !UNITY_WEBGL || UNITY_EDITOR
+        // Editor 또는 non-WebGL 플랫폼에서만 Firebase 초기화
+        Debug.Log("[FirebaseManager] Initializing Firebase (non-WebGL platform)");
+        InitializeFirebase();
+#else
+        // WebGL 빌드 - Firebase 사용 안 함
+        Debug.Log("[FirebaseManager] ⚠️ WebGL build - Firebase disabled, using local leaderboard only");
+#endif
     }
 
+#if !UNITY_WEBGL || UNITY_EDITOR
     /// <summary>
     /// Firebase 초기화 (익명 인증 포함)
     /// </summary>
@@ -88,12 +98,14 @@ public class FirebaseManager : MonoBehaviour
             Debug.Log($"[FirebaseManager] User signed in successfully: {_userId}");
         });
     }
+#endif
 
     /// <summary>
     /// 점수를 랭킹에 제출
     /// </summary>
     public void SubmitScore(string nickname, int score, int combo)
     {
+#if !UNITY_WEBGL || UNITY_EDITOR
         if (!_isInitialized)
         {
             Debug.LogWarning("[FirebaseManager] Firebase not initialized. Score not submitted.");
@@ -123,6 +135,9 @@ public class FirebaseManager : MonoBehaviour
                 Debug.LogError($"[FirebaseManager] Failed to submit score: {task.Exception}");
             }
         });
+#else
+        Debug.Log($"[FirebaseManager] WebGL build - Firebase disabled. Score not submitted: {nickname} - {score}");
+#endif
     }
 
     /// <summary>
@@ -130,6 +145,7 @@ public class FirebaseManager : MonoBehaviour
     /// </summary>
     public void LoadLeaderboard(Action<List<LeaderboardEntry>> callback, int limit = 10)
     {
+#if !UNITY_WEBGL || UNITY_EDITOR
         if (!_isInitialized)
         {
             Debug.LogWarning("[FirebaseManager] Firebase not initialized.");
@@ -166,5 +182,9 @@ public class FirebaseManager : MonoBehaviour
             Debug.Log($"[FirebaseManager] Loaded {entries.Count} leaderboard entries from Firebase");
             callback?.Invoke(entries);
         });
+#else
+        Debug.Log("[FirebaseManager] WebGL build - Firebase disabled. Returning null.");
+        callback?.Invoke(null);
+#endif
     }
 }
