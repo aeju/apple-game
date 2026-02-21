@@ -31,6 +31,42 @@ public class UIManager : MonoBehaviour
     [Tooltip("버튼 클릭 시 재생할 AudioClip (null이면 사운드 없음)")]
     [SerializeField] private AudioClip buttonClickSound = null;
 
+    [Header("Main Menu - Title")]
+    [SerializeField] private Vector2 titlePosition = new Vector2(0, 150);
+    [SerializeField] private float titleFontSize = 72f;
+    [SerializeField] private TMP_FontAsset titleFont = null;
+    [SerializeField] private Color titleColor = new Color(0.95f, 0.78f, 0.10f);
+    [SerializeField] private Vector2 subtitlePosition = new Vector2(0, 80);
+    [SerializeField] private float subtitleFontSize = 22f;
+    [SerializeField] private Vector2 decorationPosition = new Vector2(0, 30);
+
+    [Header("Main Menu - Cat Logo")]
+    [SerializeField] private Vector2 catLogoPosition = new Vector2(0, 300);
+    [SerializeField] private Vector2 catLogoSize = new Vector2(200, 200);
+
+    [Header("Main Menu - PLAY / RANKING")]
+    [Tooltip("씬에 미리 배치한 PLAY 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedPlayButton = null;
+    [SerializeField] private Vector2 playButtonPosition = new Vector2(0, -200);
+    [SerializeField] private Vector2 playButtonSize = new Vector2(350, 80);
+    [SerializeField] private Color playButtonColor = new Color(1.0f, 0.2f, 0.5f);
+    [Tooltip("씬에 미리 배치한 RANKING 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedRankingButton = null;
+    [SerializeField] private Vector2 rankingButtonPosition = new Vector2(0, -310);
+    [SerializeField] private Vector2 rankingButtonSize = new Vector2(350, 80);
+    [SerializeField] private Color rankingButtonColor = new Color(0.2f, 0.5f, 0.9f);
+
+    [Header("Main Menu - Best Score")]
+    [SerializeField] private Vector2 bestScorePosition = new Vector2(0, -190);
+    [SerializeField] private float bestScoreFontSize = 24f;
+
+    [Header("Main Menu - Theme Toggle")]
+    [Tooltip("씬에 미리 배치한 DAY/NIGHT 토글 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedThemeToggle = null;
+    [SerializeField] private Vector2 themeTogglePosition = new Vector2(-20, -20);
+    [SerializeField] private Vector2 themeToggleSize = new Vector2(120, 50);
+    [SerializeField] private float themeToggleFontSize = 15f;
+
     // 패널
     private GameObject _mainMenuPanel;
     private GameObject _hudPanel;
@@ -753,13 +789,24 @@ public class UIManager : MonoBehaviour
         foreach (var txt in menuTexts)
         {
             if (txt.text.Contains("Best:"))
+            {
                 _menuBestScoreText = txt;
+                txt.fontSize = bestScoreFontSize;
+            }
             else if (txt.text == "☀" || txt.text == "☾")
                 _themeToggleText = txt;
             else if (txt.text.Contains("PAW 10"))
+            {
                 _titleText = txt;
+                txt.fontSize = titleFontSize;
+                txt.color = titleColor;
+                if (titleFont != null) txt.font = titleFont;
+            }
             else if (txt.text.Contains("Drag paws"))
+            {
                 _subtitleText = txt;
+                txt.fontSize = subtitleFontSize;
+            }
             else if (txt.text.Contains("=^._.^="))
                 _decorationText = txt;
         }
@@ -772,24 +819,66 @@ public class UIManager : MonoBehaviour
         
         // 고양이 로고는 Start()의 InitializeCatSilhouette()에서 처리됨
 
-        // 메인메뉴 버튼 재연결 (중요!)
+        // 직렬화된 버튼 우선 처리
+        bool hasPlayButton = false;
+        bool hasRankingButton = false;
+
+        if (serializedPlayButton != null)
+        {
+            hasPlayButton = true;
+            SetupSerializedButton(serializedPlayButton, playButtonColor, () =>
+            {
+                PlayButtonSound();
+                GameManager.Instance?.StartGame();
+            });
+            _primaryButtons.Add(serializedPlayButton);
+            Debug.Log("[UIManager] PLAY button (serialized) reconnected!");
+        }
+
+        if (serializedRankingButton != null)
+        {
+            hasRankingButton = true;
+            SetupSerializedButton(serializedRankingButton, rankingButtonColor, () =>
+            {
+                PlayButtonSound();
+                ShowLeaderboard();
+            });
+            _secondaryButtons.Add(serializedRankingButton);
+            Debug.Log("[UIManager] RANKING button (serialized) reconnected!");
+        }
+
+        if (serializedThemeToggle != null)
+        {
+            _themeToggleButton = serializedThemeToggle;
+            _themeToggleText = serializedThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
+            if (_themeToggleText != null)
+            {
+                _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+                _themeToggleText.fontSize = themeToggleFontSize;
+            }
+            serializedThemeToggle.onClick.RemoveAllListeners();
+            serializedThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+            _secondaryButtons.Add(_themeToggleButton);
+            Debug.Log("[UIManager] Theme toggle (serialized) reconnected!");
+        }
+
+        // 메인메뉴 버튼 재연결 (직렬화 안 된 것들)
         var menuButtons = _mainMenuPanel.GetComponentsInChildren<Button>(true);
         Debug.Log($"[UIManager] Found {menuButtons.Length} buttons in MainMenu");
         
-        bool hasPlayButton = false;
-        bool hasRankingButton = false;
-        
         foreach (var btn in menuButtons)
         {
+            if (btn == serializedPlayButton || btn == serializedRankingButton || btn == serializedThemeToggle)
+                continue;
+
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
             if (label != null)
             {
                 Debug.Log($"[UIManager] Button found with label: {label.text}");
                 
-                if (label.text == "PLAY")
+                if (!hasPlayButton && label.text == "PLAY")
                 {
                     hasPlayButton = true;
-                    // PLAY 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() =>
                     {
@@ -799,20 +888,16 @@ public class UIManager : MonoBehaviour
                     });
                     Debug.Log("[UIManager] PLAY button event reconnected!");
                     
-                    // 버튼 색상 초기화 (진분홍)
-                    ResetButtonColor(btn, DEEP_PINK);
+                    ResetButtonColor(btn, playButtonColor);
                     
-                    // 커스텀 폰트 적용
                     if (menuButtonFont != null)
                         label.font = menuButtonFont;
                     
-                    // 폰트 크기 적용
                     label.fontSize = menuButtonFontSize;
                 }
-                else if (label.text == "RANKING")
+                else if (!hasRankingButton && label.text == "RANKING")
                 {
                     hasRankingButton = true;
-                    // RANKING 버튼 이벤트 재연결
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() =>
                     {
@@ -822,35 +907,28 @@ public class UIManager : MonoBehaviour
                     });
                     Debug.Log("[UIManager] RANKING button event reconnected!");
                     
-                    // 버튼 색상 초기화 (진파랑)
-                    ResetButtonColor(btn, DEEP_BLUE);
+                    ResetButtonColor(btn, rankingButtonColor);
                     
-                    // 커스텀 폰트 적용
                     if (menuButtonFont != null)
                         label.font = menuButtonFont;
                     
-                    // 폰트 크기 적용
                     label.fontSize = menuButtonFontSize;
                 }
-                // ⭐ 메인 메뉴 테마 토글 (이모지 또는 DAY/NIGHT 텍스트)
-                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
+                else if (_themeToggleButton == null && (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT"))
                 {
                     _themeToggleButton = btn;
                     _themeToggleText = label;
                     
-                    // ⭐ 이모지를 텍스트로 강제 변경
                     label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
                     
-                    // 텍스트 크기 조정
-                    label.fontSize = 15;
+                    label.fontSize = themeToggleFontSize;
                     label.color = new Color(0.2f, 0.2f, 0.2f);
                     label.alignment = TextAlignmentOptions.Center;
                     label.fontStyle = FontStyles.Bold;
                     
-                    // 버튼 크기 조정
                     var btnRt = btn.GetComponent<RectTransform>();
                     if (btnRt != null)
-                        btnRt.sizeDelta = new Vector2(120, 50);
+                        btnRt.sizeDelta = themeToggleSize;
                     
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() =>
@@ -885,21 +963,21 @@ public class UIManager : MonoBehaviour
             var themeBtn = new GameObject("ThemeToggle");
             themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
             var themeBtnRt = themeBtn.AddComponent<RectTransform>();
-            themeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
+            themeBtnRt.anchorMin = new Vector2(1, 1);
             themeBtnRt.anchorMax = new Vector2(1, 1);
             themeBtnRt.pivot = new Vector2(1, 1);
-            themeBtnRt.anchoredPosition = new Vector2(-20, -20); // 우측 상단에서 20px 안쪽
-            themeBtnRt.sizeDelta = new Vector2(120, 50);
+            themeBtnRt.anchoredPosition = themeTogglePosition;
+            themeBtnRt.sizeDelta = themeToggleSize;
 
             var themeBtnImg = themeBtn.AddComponent<Image>();
-            themeBtnImg.color = new Color(1f, 1f, 1f, 0f); // 투명
+            themeBtnImg.color = new Color(1f, 1f, 1f, 0f);
             themeBtnImg.type = Image.Type.Sliced;
 
             var themeBtnComp = themeBtn.AddComponent<Button>();
             var themeBtnColors = themeBtnComp.colors;
-            themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f); // 투명
-            themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f); // 살짝 보임
-            themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f); // 눌렀을 때만 보임
+            themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f);
+            themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
+            themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
             themeBtnComp.colors = themeBtnColors;
             themeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
 
@@ -909,7 +987,7 @@ public class UIManager : MonoBehaviour
             SetFullStretch(themeBtnTextRt);
             _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
             _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            _themeToggleText.fontSize = 15;
+            _themeToggleText.fontSize = themeToggleFontSize;
             _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
             _themeToggleText.alignment = TextAlignmentOptions.Center;
             _themeToggleText.fontStyle = FontStyles.Bold;
@@ -933,12 +1011,13 @@ public class UIManager : MonoBehaviour
             {
                 Debug.Log("[UIManager] PLAY button not found, creating...");
                 
-                var playBtnGo = CreateButton(_mainMenuPanel.transform, "PLAY", DEEP_PINK,
-                    new Vector2(0, -200), new Vector2(350, 80), menuButtonFontSize, () =>
+                var playBtnGo = CreateButton(_mainMenuPanel.transform, "PLAY", playButtonColor,
+                    playButtonPosition, playButtonSize, menuButtonFontSize, () =>
                     {
                         Debug.Log("[UIManager] PLAY button clicked!");
                         GameManager.Instance?.StartGame();
                     });
+                ResetButtonColor(playBtnGo.GetComponent<Button>(), playButtonColor);
                 
                 // 커스텀 폰트 적용
                 if (menuButtonFont != null)
@@ -962,11 +1041,12 @@ public class UIManager : MonoBehaviour
         {
             Debug.LogWarning("[UIManager] RANKING button not found, creating...");
             
-            var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", DEEP_BLUE,
-                new Vector2(0, -310), new Vector2(350, 80), menuButtonFontSize, () =>
+            var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", rankingButtonColor,
+                rankingButtonPosition, rankingButtonSize, menuButtonFontSize, () =>
                 {
                     ShowLeaderboard();
                 });
+            ResetButtonColor(rankingBtn.GetComponent<Button>(), rankingButtonColor);
             
             // 커스텀 폰트 적용
             if (menuButtonFont != null)
@@ -1240,25 +1320,25 @@ public class UIManager : MonoBehaviour
         ApplyButtonTheme(_secondaryButtons, "BtnSecondary");
         ApplyButtonTheme(_successButtons, "BtnSuccess");
         
-        // ⭐ PLAY/RANKING 버튼은 고정 색상 유지 (테마 영향 안 받음)
+        // PLAY/RANKING 버튼은 고정 색상 유지 (테마 영향 안 받음)
+        if (serializedPlayButton != null)
+            ResetButtonColor(serializedPlayButton, playButtonColor);
+        if (serializedRankingButton != null)
+            ResetButtonColor(serializedRankingButton, rankingButtonColor);
+
         var menuButtons = _mainMenuPanel?.GetComponentsInChildren<Button>(true);
         if (menuButtons != null)
         {
             foreach (var btn in menuButtons)
             {
+                if (btn == serializedPlayButton || btn == serializedRankingButton) continue;
                 var label = btn.GetComponentInChildren<TextMeshProUGUI>();
                 if (label != null)
                 {
                     if (label.text == "PLAY")
-                    {
-                        ResetButtonColor(btn, DEEP_PINK);
-                        Debug.Log("[UIManager] 🎨 PLAY button color restored to DEEP_PINK");
-                    }
+                        ResetButtonColor(btn, playButtonColor);
                     else if (label.text == "RANKING")
-                    {
-                        ResetButtonColor(btn, DEEP_BLUE);
-                        Debug.Log("[UIManager] 🎨 RANKING button color restored to DEEP_BLUE");
-                    }
+                        ResetButtonColor(btn, rankingButtonColor);
                 }
             }
         }
@@ -1370,84 +1450,137 @@ public class UIManager : MonoBehaviour
         SetFullStretch(rt);
 
         // 고양이 실루엣 마스코트
-        CreateCatSilhouette(_mainMenuPanel.transform, new Vector2(0, 300), new Vector2(200, 200));
+        CreateCatSilhouette(_mainMenuPanel.transform, catLogoPosition, catLogoSize);
 
         // 타이틀
         _titleText = CreateTextElement(_mainMenuPanel.transform, "PAW 10",
-            72, CAT_EYE_GOLD, new Vector2(0, 150), new Vector2(800, 100), isPrimary: false);
+            titleFontSize, titleColor, titlePosition, new Vector2(800, 100), isPrimary: false);
         _titleText.fontStyle = FontStyles.Bold;
+        if (titleFont != null) _titleText.font = titleFont;
 
         // 부제
         _subtitleText = CreateTextElement(_mainMenuPanel.transform, "Drag paws that sum to 10!",
-            22, Color.gray, new Vector2(0, 80), new Vector2(700, 50), isPrimary: false);
+            subtitleFontSize, Color.gray, subtitlePosition, new Vector2(700, 50), isPrimary: false);
         _secondaryTexts.Add(_subtitleText);
 
         // 고양이 장식
         _decorationText = CreateTextElement(_mainMenuPanel.transform, "~  =^._.^=  ~",
-            28, Color.gray, new Vector2(0, 30), new Vector2(400, 50), isPrimary: false);
+            28, Color.gray, decorationPosition, new Vector2(400, 50), isPrimary: false);
         _secondaryTexts.Add(_decorationText);
         
         // 타이틀 애니메이션 시작
         StartCoroutine(CoAnimateMenuTitle());
         
-        // ⭐ 고양이 로고 애니메이션 시작
+        // 고양이 로고 애니메이션 시작
         StartCoroutine(CoAnimateCatSilhouette());
 
         // Play 버튼
-        var playBtn = CreateButton(_mainMenuPanel.transform, "PLAY", Color.white,
-            new Vector2(0, -30), new Vector2(320, 70), 36, () =>
+        if (serializedPlayButton != null)
+        {
+            SetupSerializedButton(serializedPlayButton, playButtonColor, () =>
             {
+                PlayButtonSound();
                 GameManager.Instance?.StartGame();
             });
-        _primaryButtons.Add(playBtn.GetComponent<Button>());
+            _primaryButtons.Add(serializedPlayButton);
+        }
+        else
+        {
+            var playBtn = CreateButton(_mainMenuPanel.transform, "PLAY", playButtonColor,
+                playButtonPosition, playButtonSize, menuButtonFontSize, () =>
+                {
+                    GameManager.Instance?.StartGame();
+                });
+            _primaryButtons.Add(playBtn.GetComponent<Button>());
+            ResetButtonColor(playBtn.GetComponent<Button>(), playButtonColor);
+            if (menuButtonFont != null)
+            {
+                var playTmp = playBtn.GetComponentInChildren<TextMeshProUGUI>();
+                if (playTmp != null) playTmp.font = menuButtonFont;
+            }
+        }
 
         // Ranking 버튼
-        var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", CAT_EYE_GOLD,
-            new Vector2(0, -115), new Vector2(280, 60), 28, () =>
+        if (serializedRankingButton != null)
+        {
+            SetupSerializedButton(serializedRankingButton, rankingButtonColor, () =>
             {
+                PlayButtonSound();
                 ShowLeaderboard();
             });
-        _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+            _secondaryButtons.Add(serializedRankingButton);
+        }
+        else
+        {
+            var rankingBtn = CreateButton(_mainMenuPanel.transform, "RANKING", rankingButtonColor,
+                rankingButtonPosition, rankingButtonSize, menuButtonFontSize, () =>
+                {
+                    ShowLeaderboard();
+                });
+            _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+            ResetButtonColor(rankingBtn.GetComponent<Button>(), rankingButtonColor);
+            if (menuButtonFont != null)
+            {
+                var rankTmp = rankingBtn.GetComponentInChildren<TextMeshProUGUI>();
+                if (rankTmp != null) rankTmp.font = menuButtonFont;
+            }
+        }
 
         // 최고기록
         _menuBestScoreText = CreateTextElement(_mainMenuPanel.transform, "Best: 0",
-            24, CAT_EYE_GOLD, new Vector2(0, -190), new Vector2(400, 50), isPrimary: false);
+            bestScoreFontSize, CAT_EYE_GOLD, bestScorePosition, new Vector2(400, 50), isPrimary: false);
 
-        // 테마 토글 버튼 (우측 상단) - 절대 위치 사용
-        var themeBtn = new GameObject("ThemeToggle");
-        themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
-        var themeBtnRt = themeBtn.AddComponent<RectTransform>();
-        themeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
-        themeBtnRt.anchorMax = new Vector2(1, 1);
-        themeBtnRt.pivot = new Vector2(1, 1);
-        themeBtnRt.anchoredPosition = new Vector2(-20, -20); // 우측 상단에서 20px 안쪽
-        themeBtnRt.sizeDelta = new Vector2(120, 50);
+        // 테마 토글 버튼
+        if (serializedThemeToggle != null)
+        {
+            _themeToggleButton = serializedThemeToggle;
+            _themeToggleText = serializedThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
+            if (_themeToggleText != null)
+            {
+                _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+                _themeToggleText.fontSize = themeToggleFontSize;
+            }
+            serializedThemeToggle.onClick.RemoveAllListeners();
+            serializedThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+            _secondaryButtons.Add(_themeToggleButton);
+        }
+        else
+        {
+            var themeBtn = new GameObject("ThemeToggle");
+            themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
+            var themeBtnRt = themeBtn.AddComponent<RectTransform>();
+            themeBtnRt.anchorMin = new Vector2(1, 1);
+            themeBtnRt.anchorMax = new Vector2(1, 1);
+            themeBtnRt.pivot = new Vector2(1, 1);
+            themeBtnRt.anchoredPosition = themeTogglePosition;
+            themeBtnRt.sizeDelta = themeToggleSize;
 
-        var themeBtnImg = themeBtn.AddComponent<Image>();
-        themeBtnImg.color = new Color(1f, 1f, 1f, 0f); // 투명
-        themeBtnImg.type = Image.Type.Sliced;
+            var themeBtnImg = themeBtn.AddComponent<Image>();
+            themeBtnImg.color = new Color(1f, 1f, 1f, 0f);
+            themeBtnImg.type = Image.Type.Sliced;
 
-        var themeBtnComp = themeBtn.AddComponent<Button>();
-        var themeBtnColors = themeBtnComp.colors;
-        themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f); // 투명
-        themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f); // 살짝 보임
-        themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f); // 눌렀을 때만 보임
-        themeBtnComp.colors = themeBtnColors;
-        themeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+            var themeBtnComp = themeBtn.AddComponent<Button>();
+            var themeBtnColors = themeBtnComp.colors;
+            themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f);
+            themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
+            themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
+            themeBtnComp.colors = themeBtnColors;
+            themeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
 
-        var themeBtnTextGo = new GameObject("Label");
-        themeBtnTextGo.transform.SetParent(themeBtn.transform, false);
-        var themeBtnTextRt = themeBtnTextGo.AddComponent<RectTransform>();
-        SetFullStretch(themeBtnTextRt);
-        _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
-        _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-        _themeToggleText.fontSize = 15;
-        _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
-        _themeToggleText.alignment = TextAlignmentOptions.Center;
-        _themeToggleText.fontStyle = FontStyles.Bold;
+            var themeBtnTextGo = new GameObject("Label");
+            themeBtnTextGo.transform.SetParent(themeBtn.transform, false);
+            var themeBtnTextRt = themeBtnTextGo.AddComponent<RectTransform>();
+            SetFullStretch(themeBtnTextRt);
+            _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
+            _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+            _themeToggleText.fontSize = themeToggleFontSize;
+            _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
+            _themeToggleText.alignment = TextAlignmentOptions.Center;
+            _themeToggleText.fontStyle = FontStyles.Bold;
 
-        _themeToggleButton = themeBtnComp;
-        _secondaryButtons.Add(_themeToggleButton);
+            _themeToggleButton = themeBtnComp;
+            _secondaryButtons.Add(_themeToggleButton);
+        }
     }
 
     private void UpdateMenuBestScore()
@@ -2688,6 +2821,19 @@ public class UIManager : MonoBehaviour
     /// <summary>
     /// 버튼 이미지 색상을 초기화합니다 (Inspector 설정 무시)
     /// </summary>
+    private void SetupSerializedButton(Button btn, Color color, UnityEngine.Events.UnityAction onClick)
+    {
+        btn.onClick.RemoveAllListeners();
+        btn.onClick.AddListener(onClick);
+        ResetButtonColor(btn, color);
+        var label = btn.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null)
+        {
+            if (menuButtonFont != null) label.font = menuButtonFont;
+            label.fontSize = menuButtonFontSize;
+        }
+    }
+
     private void ResetButtonColor(Button btn, Color color)
     {
         var img = btn.GetComponent<Image>();
