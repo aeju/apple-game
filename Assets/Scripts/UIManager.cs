@@ -67,6 +67,30 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Vector2 themeToggleSize = new Vector2(120, 50);
     [SerializeField] private float themeToggleFontSize = 15f;
 
+    [Header("HUD - Buttons")]
+    [Tooltip("씬에 미리 배치한 HINT 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedHintButton = null;
+    [Tooltip("씬에 미리 배치한 SHUFFLE 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedShuffleButton = null;
+    [Tooltip("씬에 미리 배치한 RESTART 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedRestartButton = null;
+    [Tooltip("씬에 미리 배치한 HOME 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedHomeButton = null;
+    [Tooltip("씬에 미리 배치한 HUD 테마 토글 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedHudThemeToggle = null;
+
+    [Header("Result - Buttons")]
+    [Tooltip("씬에 미리 배치한 RETRY 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedRetryButton = null;
+    [Tooltip("씬에 미리 배치한 MENU 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedMenuButton = null;
+    [Tooltip("씬에 미리 배치한 결과화면 RANKING 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedResultRankingButton = null;
+
+    [Header("Leaderboard - Buttons")]
+    [Tooltip("씬에 미리 배치한 CLOSE 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedCloseButton = null;
+
     // 패널
     private GameObject _mainMenuPanel;
     private GameObject _hudPanel;
@@ -301,21 +325,28 @@ public class UIManager : MonoBehaviour
             else
             {
                 // CLOSE 버튼 재연결
-                var leaderboardButtons = _leaderboardPanel.GetComponentsInChildren<Button>(true);
-                foreach (var btn in leaderboardButtons)
+                if (serializedCloseButton != null)
                 {
-                    var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
-                    if (btnText != null && btnText.text == "CLOSE")
+                    serializedCloseButton.onClick.RemoveAllListeners();
+                    serializedCloseButton.onClick.AddListener(() => { PlayButtonSound(); HideLeaderboard(); });
+                    _primaryButtons.Add(serializedCloseButton);
+                }
+                else
+                {
+                    var leaderboardButtons = _leaderboardPanel.GetComponentsInChildren<Button>(true);
+                    foreach (var btn in leaderboardButtons)
                     {
-                        btn.onClick.RemoveAllListeners();
-                        btn.onClick.AddListener(() =>
+                        var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                        if (btnText != null && btnText.text == "CLOSE")
                         {
-                            PlayButtonSound();
-                            Debug.Log("[UIManager] 🚪 CLOSE button clicked!");
-                            HideLeaderboard();
-                        });
-                        Debug.Log("[UIManager] ✅ CLOSE button event reconnected!");
-                        break;
+                            btn.onClick.RemoveAllListeners();
+                            btn.onClick.AddListener(() =>
+                            {
+                                PlayButtonSound();
+                                HideLeaderboard();
+                            });
+                            break;
+                        }
                     }
                 }
             }
@@ -1060,15 +1091,58 @@ public class UIManager : MonoBehaviour
             Debug.Log("[UIManager] RANKING button created!");
         }
 
-        // HUD 버튼 재연결
+        // HUD 직렬화 버튼 우선 처리
+        if (serializedHintButton != null)
+        {
+            _hintButton = serializedHintButton;
+            _hintButtonText = serializedHintButton.GetComponentInChildren<TextMeshProUGUI>();
+            SetupSerializedButton(serializedHintButton, LIGHT_SKY, () => { PlayButtonSound(); GameManager.Instance?.UseHint(); });
+            _secondaryButtons.Add(serializedHintButton);
+        }
+        if (serializedShuffleButton != null)
+        {
+            _shuffleButton = serializedShuffleButton;
+            _shuffleButtonText = serializedShuffleButton.GetComponentInChildren<TextMeshProUGUI>();
+            SetupSerializedButton(serializedShuffleButton, LIGHT_PINK, () => { PlayButtonSound(); GameManager.Instance?.UseShuffle(); });
+            _successButtons.Add(serializedShuffleButton);
+        }
+        if (serializedRestartButton != null)
+        {
+            SetupSerializedButton(serializedRestartButton, CAT_NOSE_PINK, () => { PlayButtonSound(); GameManager.Instance?.RestartGame(); });
+            _secondaryButtons.Add(serializedRestartButton);
+        }
+        if (serializedHomeButton != null)
+        {
+            SetupSerializedButton(serializedHomeButton, CAT_PAW_CREAM, () => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
+            _secondaryButtons.Add(serializedHomeButton);
+        }
+        if (serializedHudThemeToggle != null)
+        {
+            _hudThemeToggleButton = serializedHudThemeToggle;
+            _hudThemeToggleText = serializedHudThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
+            if (_hudThemeToggleText != null)
+                _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+            serializedHudThemeToggle.onClick.RemoveAllListeners();
+            serializedHudThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+            _secondaryButtons.Add(_hudThemeToggleButton);
+        }
+
+        // HUD 비직렬화 버튼 재연결
         var hudButtons2 = _hudPanel.GetComponentsInChildren<Button>(true);
         foreach (var btn in hudButtons2)
         {
+            if (btn == serializedHintButton || btn == serializedShuffleButton ||
+                btn == serializedRestartButton || btn == serializedHomeButton ||
+                btn == serializedHudThemeToggle)
+                continue;
+
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
             if (label != null)
             {
-                if (label.text.Contains("HINT"))
+                if (serializedHintButton == null && label.text.Contains("HINT"))
                 {
+                    _hintButton = btn;
+                    _hintButtonText = label;
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => 
                     { 
@@ -1076,27 +1150,24 @@ public class UIManager : MonoBehaviour
                         GameManager.Instance?.UseHint(); 
                     });
                 }
-                else if (label.text.Contains("SHUFFLE"))
+                else if (serializedShuffleButton == null && label.text.Contains("SHUFFLE"))
                 {
+                    _shuffleButton = btn;
+                    _shuffleButtonText = label;
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
                 }
-                // ⭐ HUD 테마 토글 (이모지 또는 DAY/NIGHT 텍스트)
-                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
+                else if (_hudThemeToggleButton == null && (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT"))
                 {
                     _hudThemeToggleButton = btn;
                     _hudThemeToggleText = label;
                     
-                    // ⭐ 이모지를 텍스트로 강제 변경
                     label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-                    
-                    // 텍스트 크기 조정
                     label.fontSize = 15;
                     label.color = new Color(0.2f, 0.2f, 0.2f);
                     label.alignment = TextAlignmentOptions.Center;
                     label.fontStyle = FontStyles.Bold;
                     
-                    // 버튼 크기 조정
                     var btnRt = btn.GetComponent<RectTransform>();
                     if (btnRt != null)
                         btnRt.sizeDelta = new Vector2(120, 50);
@@ -1105,11 +1176,9 @@ public class UIManager : MonoBehaviour
                     btn.onClick.AddListener(() => 
                     { 
                         PlayButtonSound(); 
-                        Debug.Log("[UIManager] HUD Theme toggle clicked (hudButtons2)!");
                         ThemeManager.Instance?.ToggleTheme(); 
                     });
                     
-                    // 버튼 배경 투명하게
                     var img = btn.GetComponent<Image>();
                     if (img != null)
                     {
@@ -1120,44 +1189,58 @@ public class UIManager : MonoBehaviour
                         colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
                         btn.colors = colors;
                     }
-                    
-                    Debug.Log("[UIManager] ✅ HUD Theme toggle button reconnected (hudButtons2)!");
                 }
             }
         }
 
-        // 결과 화면 버튼 재연결
+        // 결과 화면 직렬화 버튼 우선 처리
+        if (serializedRetryButton != null)
+        {
+            serializedRetryButton.onClick.RemoveAllListeners();
+            serializedRetryButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.RestartGame(); });
+            _primaryButtons.Add(serializedRetryButton);
+        }
+        if (serializedMenuButton != null)
+        {
+            serializedMenuButton.onClick.RemoveAllListeners();
+            serializedMenuButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
+            _secondaryButtons.Add(serializedMenuButton);
+        }
+        if (serializedResultRankingButton != null)
+        {
+            serializedResultRankingButton.onClick.RemoveAllListeners();
+            serializedResultRankingButton.onClick.AddListener(() => { PlayButtonSound(); ShowLeaderboard(); });
+            ResetButtonColor(serializedResultRankingButton, CAT_EYE_GOLD);
+            _secondaryButtons.Add(serializedResultRankingButton);
+        }
+
+        // 결과 화면 비직렬화 버튼 재연결
         var resultButtons = _resultPanel.GetComponentsInChildren<Button>(true);
         foreach (var btn in resultButtons)
         {
+            if (btn == serializedRetryButton || btn == serializedMenuButton || btn == serializedResultRankingButton)
+                continue;
+
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
             if (label != null)
             {
-                if (label.text == "RETRY")
+                if (serializedRetryButton == null && label.text == "RETRY")
                 {
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.RestartGame(); });
-                    
-                    // 버튼 색상 초기화
                     ResetButtonColor(btn, CAT_EYE_GOLD);
                 }
-                else if (label.text == "MENU")
+                else if (serializedMenuButton == null && label.text == "MENU")
                 {
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
-                    
-                    // 버튼 색상 초기화
                     ResetButtonColor(btn, CAT_EYE_GOLD);
                 }
-                else if (label.text == "RANKING")
+                else if (serializedResultRankingButton == null && label.text == "RANKING")
                 {
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { PlayButtonSound(); ShowLeaderboard(); });
-                    
-                    // 버튼 색상 초기화
                     ResetButtonColor(btn, CAT_EYE_GOLD);
-                    
-                    Debug.Log("[UIManager] ✅ RANKING button reconnected in Result Panel");
                 }
             }
         }
@@ -1343,35 +1426,32 @@ public class UIManager : MonoBehaviour
             }
         }
         
-        // ⭐ 플레이 화면 버튼들도 고정 색상 유지 (HINT, SHUFFLE, RESTART, HOME)
+        // 플레이 화면 버튼들도 고정 색상 유지
+        if (serializedHintButton != null) ResetButtonColor(serializedHintButton, LIGHT_SKY);
+        if (serializedShuffleButton != null) ResetButtonColor(serializedShuffleButton, LIGHT_PINK);
+        if (serializedRestartButton != null) ResetButtonColor(serializedRestartButton, CAT_NOSE_PINK);
+        if (serializedHomeButton != null) ResetButtonColor(serializedHomeButton, CAT_PAW_CREAM);
+
         var hudButtons = _hudPanel?.GetComponentsInChildren<Button>(true);
         if (hudButtons != null)
         {
             foreach (var btn in hudButtons)
             {
+                if (btn == serializedHintButton || btn == serializedShuffleButton ||
+                    btn == serializedRestartButton || btn == serializedHomeButton)
+                    continue;
+
                 var label = btn.GetComponentInChildren<TextMeshProUGUI>();
                 if (label != null)
                 {
                     if (label.text.Contains("HINT"))
-                    {
                         ResetButtonColor(btn, LIGHT_SKY);
-                        Debug.Log("[UIManager] 🎨 HINT button color restored to LIGHT_SKY");
-                    }
                     else if (label.text.Contains("SHUFFLE"))
-                    {
                         ResetButtonColor(btn, LIGHT_PINK);
-                        Debug.Log("[UIManager] 🎨 SHUFFLE button color restored to LIGHT_PINK");
-                    }
                     else if (label.text == "RESTART")
-                    {
                         ResetButtonColor(btn, CAT_NOSE_PINK);
-                        Debug.Log("[UIManager] 🎨 RESTART button color restored to CAT_NOSE_PINK");
-                    }
                     else if (label.text == "HOME")
-                    {
                         ResetButtonColor(btn, CAT_PAW_CREAM);
-                        Debug.Log("[UIManager] 🎨 HOME button color restored to CAT_PAW_CREAM");
-                    }
                 }
             }
         }
@@ -1689,77 +1769,142 @@ public class UIManager : MonoBehaviour
         botRt.anchoredPosition = new Vector2(0, 10);
 
         // 힌트 버튼 (연한 하늘색)
-        var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", LIGHT_SKY,
-            new Vector2(-240, 0), new Vector2(140, 55), 20, () =>
+        if (serializedHintButton != null)
+        {
+            _hintButton = serializedHintButton;
+            _hintButtonText = serializedHintButton.GetComponentInChildren<TextMeshProUGUI>();
+            SetupSerializedButton(serializedHintButton, LIGHT_SKY, () =>
             {
-                Debug.Log("[UIManager] HINT button clicked (CreateButton)!");
+                PlayButtonSound();
                 GameManager.Instance?.UseHint();
             });
-        _hintButton = hintBtnGo.GetComponent<Button>();
-        _hintButtonText = hintBtnGo.GetComponentInChildren<TextMeshProUGUI>();
-        _secondaryButtons.Add(_hintButton);
+            _secondaryButtons.Add(_hintButton);
+        }
+        else
+        {
+            var hintBtnGo = CreateButton(bottomBar.transform, "HINT (3)", LIGHT_SKY,
+                new Vector2(-240, 0), new Vector2(140, 55), 20, () =>
+                {
+                    Debug.Log("[UIManager] HINT button clicked (CreateButton)!");
+                    GameManager.Instance?.UseHint();
+                });
+            _hintButton = hintBtnGo.GetComponent<Button>();
+            _hintButtonText = hintBtnGo.GetComponentInChildren<TextMeshProUGUI>();
+            _secondaryButtons.Add(_hintButton);
+        }
 
         // 셔플 버튼 (연한 핑크)
-        var shuffleBtnGo = CreateButton(bottomBar.transform, "SHUFFLE (2)", LIGHT_PINK,
-            new Vector2(-80, 0), new Vector2(140, 55), 20, () =>
+        if (serializedShuffleButton != null)
+        {
+            _shuffleButton = serializedShuffleButton;
+            _shuffleButtonText = serializedShuffleButton.GetComponentInChildren<TextMeshProUGUI>();
+            SetupSerializedButton(serializedShuffleButton, LIGHT_PINK, () =>
             {
+                PlayButtonSound();
                 GameManager.Instance?.UseShuffle();
             });
-        _shuffleButton = shuffleBtnGo.GetComponent<Button>();
-        _shuffleButtonText = shuffleBtnGo.GetComponentInChildren<TextMeshProUGUI>();
-        _successButtons.Add(_shuffleButton);
+            _successButtons.Add(_shuffleButton);
+        }
+        else
+        {
+            var shuffleBtnGo = CreateButton(bottomBar.transform, "SHUFFLE (2)", LIGHT_PINK,
+                new Vector2(-80, 0), new Vector2(140, 55), 20, () =>
+                {
+                    GameManager.Instance?.UseShuffle();
+                });
+            _shuffleButton = shuffleBtnGo.GetComponent<Button>();
+            _shuffleButtonText = shuffleBtnGo.GetComponentInChildren<TextMeshProUGUI>();
+            _successButtons.Add(_shuffleButton);
+        }
 
         // 재시작 버튼 (핑크색)
-        var restartBtnGo = CreateButton(bottomBar.transform, "RESTART", CAT_NOSE_PINK,
-            new Vector2(80, 0), new Vector2(140, 55), 18, () =>
+        if (serializedRestartButton != null)
+        {
+            SetupSerializedButton(serializedRestartButton, CAT_NOSE_PINK, () =>
             {
+                PlayButtonSound();
                 GameManager.Instance?.RestartGame();
             });
-        _secondaryButtons.Add(restartBtnGo.GetComponent<Button>());
+            _secondaryButtons.Add(serializedRestartButton);
+        }
+        else
+        {
+            var restartBtnGo = CreateButton(bottomBar.transform, "RESTART", CAT_NOSE_PINK,
+                new Vector2(80, 0), new Vector2(140, 55), 18, () =>
+                {
+                    GameManager.Instance?.RestartGame();
+                });
+            _secondaryButtons.Add(restartBtnGo.GetComponent<Button>());
+        }
 
         // 홈 버튼
-        var homeBtnGo = CreateButton(bottomBar.transform, "HOME", CAT_PAW_CREAM,
-            new Vector2(240, 0), new Vector2(140, 55), 18, () =>
+        if (serializedHomeButton != null)
+        {
+            SetupSerializedButton(serializedHomeButton, CAT_PAW_CREAM, () =>
             {
+                PlayButtonSound();
                 GameManager.Instance?.ReturnToMenu();
             });
-        _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
+            _secondaryButtons.Add(serializedHomeButton);
+        }
+        else
+        {
+            var homeBtnGo = CreateButton(bottomBar.transform, "HOME", CAT_PAW_CREAM,
+                new Vector2(240, 0), new Vector2(140, 55), 18, () =>
+                {
+                    GameManager.Instance?.ReturnToMenu();
+                });
+            _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
+        }
 
-        // HUD 테마 토글 버튼 (우측 상단, 메인 메뉴와 동일 위치)
-        var hudThemeBtn = new GameObject("HUDThemeToggle");
-        hudThemeBtn.transform.SetParent(_hudPanel.transform, false);
-        var hudThemeBtnRt = hudThemeBtn.AddComponent<RectTransform>();
-        hudThemeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
-        hudThemeBtnRt.anchorMax = new Vector2(1, 1);
-        hudThemeBtnRt.pivot = new Vector2(1, 1);
-        hudThemeBtnRt.anchoredPosition = new Vector2(-20, -20); // 메인 메뉴와 동일 위치
-        hudThemeBtnRt.sizeDelta = new Vector2(120, 50);
+        // HUD 테마 토글 버튼
+        if (serializedHudThemeToggle != null)
+        {
+            _hudThemeToggleButton = serializedHudThemeToggle;
+            _hudThemeToggleText = serializedHudThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
+            if (_hudThemeToggleText != null)
+                _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+            serializedHudThemeToggle.onClick.RemoveAllListeners();
+            serializedHudThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+            _secondaryButtons.Add(_hudThemeToggleButton);
+        }
+        else
+        {
+            var hudThemeBtn = new GameObject("HUDThemeToggle");
+            hudThemeBtn.transform.SetParent(_hudPanel.transform, false);
+            var hudThemeBtnRt = hudThemeBtn.AddComponent<RectTransform>();
+            hudThemeBtnRt.anchorMin = new Vector2(1, 1);
+            hudThemeBtnRt.anchorMax = new Vector2(1, 1);
+            hudThemeBtnRt.pivot = new Vector2(1, 1);
+            hudThemeBtnRt.anchoredPosition = new Vector2(-20, -20);
+            hudThemeBtnRt.sizeDelta = new Vector2(120, 50);
 
-        var hudThemeBtnImg = hudThemeBtn.AddComponent<Image>();
-        hudThemeBtnImg.color = new Color(1f, 1f, 1f, 0f); // 투명
-        hudThemeBtnImg.type = Image.Type.Sliced;
+            var hudThemeBtnImg = hudThemeBtn.AddComponent<Image>();
+            hudThemeBtnImg.color = new Color(1f, 1f, 1f, 0f);
+            hudThemeBtnImg.type = Image.Type.Sliced;
 
-        var hudThemeBtnComp = hudThemeBtn.AddComponent<Button>();
-        var hudThemeBtnColors = hudThemeBtnComp.colors;
-        hudThemeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f); // 투명
-        hudThemeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f); // 살짝 보임
-        hudThemeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f); // 눌렀을 때만 보임
-        hudThemeBtnComp.colors = hudThemeBtnColors;
-        hudThemeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
+            var hudThemeBtnComp = hudThemeBtn.AddComponent<Button>();
+            var hudThemeBtnColors = hudThemeBtnComp.colors;
+            hudThemeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f);
+            hudThemeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
+            hudThemeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
+            hudThemeBtnComp.colors = hudThemeBtnColors;
+            hudThemeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
 
-        var hudThemeBtnTextGo = new GameObject("Label");
-        hudThemeBtnTextGo.transform.SetParent(hudThemeBtn.transform, false);
-        var hudThemeBtnTextRt = hudThemeBtnTextGo.AddComponent<RectTransform>();
-        SetFullStretch(hudThemeBtnTextRt);
-        _hudThemeToggleText = hudThemeBtnTextGo.AddComponent<TextMeshProUGUI>();
-        _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-        _hudThemeToggleText.fontSize = 15;
-        _hudThemeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
-        _hudThemeToggleText.alignment = TextAlignmentOptions.Center;
-        _hudThemeToggleText.fontStyle = FontStyles.Bold;
+            var hudThemeBtnTextGo = new GameObject("Label");
+            hudThemeBtnTextGo.transform.SetParent(hudThemeBtn.transform, false);
+            var hudThemeBtnTextRt = hudThemeBtnTextGo.AddComponent<RectTransform>();
+            SetFullStretch(hudThemeBtnTextRt);
+            _hudThemeToggleText = hudThemeBtnTextGo.AddComponent<TextMeshProUGUI>();
+            _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
+            _hudThemeToggleText.fontSize = 15;
+            _hudThemeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
+            _hudThemeToggleText.alignment = TextAlignmentOptions.Center;
+            _hudThemeToggleText.fontStyle = FontStyles.Bold;
 
-        _hudThemeToggleButton = hudThemeBtnComp;
-        _secondaryButtons.Add(_hudThemeToggleButton);
+            _hudThemeToggleButton = hudThemeBtnComp;
+            _secondaryButtons.Add(_hudThemeToggleButton);
+        }
 
         // BGM 컨트롤 생성
         CreateBGMControl();
@@ -2177,27 +2322,57 @@ public class UIManager : MonoBehaviour
             36, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
         _resultNewRecordText.fontStyle = FontStyles.Bold;
 
-        // 랭킹 버튼 (새로 추가)
-        var rankingBtn = CreateButton(_resultPanel.transform, "RANKING", CAT_EYE_GOLD,
-            new Vector2(0, -250), new Vector2(280, 60), 24, () =>
-            {
-                ShowLeaderboard();
-            });
-        _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+        // 랭킹 버튼
+        if (serializedResultRankingButton != null)
+        {
+            serializedResultRankingButton.onClick.RemoveAllListeners();
+            serializedResultRankingButton.onClick.AddListener(() => { PlayButtonSound(); ShowLeaderboard(); });
+            ResetButtonColor(serializedResultRankingButton, CAT_EYE_GOLD);
+            _secondaryButtons.Add(serializedResultRankingButton);
+        }
+        else
+        {
+            var rankingBtn = CreateButton(_resultPanel.transform, "RANKING", CAT_EYE_GOLD,
+                new Vector2(0, -250), new Vector2(280, 60), 24, () =>
+                {
+                    ShowLeaderboard();
+                });
+            _secondaryButtons.Add(rankingBtn.GetComponent<Button>());
+        }
         
-        var retryBtn = CreateButton(_resultPanel.transform, "RETRY", Color.white,
-            new Vector2(-180, -170), new Vector2(240, 65), 26, () =>
-            {
-                GameManager.Instance?.RestartGame();
-            });
-        _primaryButtons.Add(retryBtn.GetComponent<Button>());
+        // RETRY 버튼
+        if (serializedRetryButton != null)
+        {
+            serializedRetryButton.onClick.RemoveAllListeners();
+            serializedRetryButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.RestartGame(); });
+            _primaryButtons.Add(serializedRetryButton);
+        }
+        else
+        {
+            var retryBtn = CreateButton(_resultPanel.transform, "RETRY", Color.white,
+                new Vector2(-180, -170), new Vector2(240, 65), 26, () =>
+                {
+                    GameManager.Instance?.RestartGame();
+                });
+            _primaryButtons.Add(retryBtn.GetComponent<Button>());
+        }
 
-        var menuBtn = CreateButton(_resultPanel.transform, "MENU", Color.white,
-            new Vector2(180, -170), new Vector2(240, 65), 26, () =>
-            {
-                GameManager.Instance?.ReturnToMenu();
-            });
-        _secondaryButtons.Add(menuBtn.GetComponent<Button>());
+        // MENU 버튼
+        if (serializedMenuButton != null)
+        {
+            serializedMenuButton.onClick.RemoveAllListeners();
+            serializedMenuButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
+            _secondaryButtons.Add(serializedMenuButton);
+        }
+        else
+        {
+            var menuBtn = CreateButton(_resultPanel.transform, "MENU", Color.white,
+                new Vector2(180, -170), new Vector2(240, 65), 26, () =>
+                {
+                    GameManager.Instance?.ReturnToMenu();
+                });
+            _secondaryButtons.Add(menuBtn.GetComponent<Button>());
+        }
 
         _resultPanel.SetActive(false);
     }
@@ -2314,12 +2489,21 @@ public class UIManager : MonoBehaviour
         _leaderboardEntriesContainer = entriesContainer.transform;
 
         // Close 버튼
-        var closeBtn = CreateButton(_leaderboardPanel.transform, "CLOSE", Color.white,
-            new Vector2(0, -360), new Vector2(280, 65), 28, () =>
-            {
-                HideLeaderboard();
-            });
-        _primaryButtons.Add(closeBtn.GetComponent<Button>());
+        if (serializedCloseButton != null)
+        {
+            serializedCloseButton.onClick.RemoveAllListeners();
+            serializedCloseButton.onClick.AddListener(() => { PlayButtonSound(); HideLeaderboard(); });
+            _primaryButtons.Add(serializedCloseButton);
+        }
+        else
+        {
+            var closeBtn = CreateButton(_leaderboardPanel.transform, "CLOSE", Color.white,
+                new Vector2(0, -360), new Vector2(280, 65), 28, () =>
+                {
+                    HideLeaderboard();
+                });
+            _primaryButtons.Add(closeBtn.GetComponent<Button>());
+        }
 
         _leaderboardPanel.SetActive(false);
     }
@@ -2826,12 +3010,6 @@ public class UIManager : MonoBehaviour
         btn.onClick.RemoveAllListeners();
         btn.onClick.AddListener(onClick);
         ResetButtonColor(btn, color);
-        var label = btn.GetComponentInChildren<TextMeshProUGUI>();
-        if (label != null)
-        {
-            if (menuButtonFont != null) label.font = menuButtonFont;
-            label.fontSize = menuButtonFontSize;
-        }
     }
 
     private void ResetButtonColor(Button btn, Color color)
