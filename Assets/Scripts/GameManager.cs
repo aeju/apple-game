@@ -121,9 +121,14 @@ public class GameManager : MonoBehaviour
         // BGM 정지
         AudioManager.Instance?.StopBGM();
         
+        // 점수를 확정 시점에 즉시 캡처 (이후 변동 방지)
+        if (ScoreManager.Instance != null && UIManager.Instance != null)
+        {
+            UIManager.Instance.CaptureSessionScore(ScoreManager.Instance.Score, ScoreManager.Instance.MaxCombo);
+        }
+
         SetState(GameState.GameOver);
         ScoreManager.Instance?.SaveBestScore();
-        // 점수 제출은 결과 화면을 떠날 때 UIManager에서 처리 (닉네임 변경 반영)
     }
 
     /// <summary>

@@ -775,45 +775,75 @@ public class UIManager : MonoBehaviour
                 _resultCatFace = txt;
         }
         
-        // 필수 요소가 없으면 결과 패널 재생성
+        // 필수 요소가 없으면 결과 패널 재생성 (단, 직렬화된 버튼이 있으면 보존)
         if (_resultScoreText == null || _resultCatFace == null || _resultNewRecordText == null)
         {
-            Debug.LogWarning("[UIManager] Result panel elements missing, recreating result panel...");
-            Destroy(_resultPanel);
-            CreateResultPanel();
-        }
-        else
-        {
-            // 닉네임 입력 필드 재참조
-            _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
-            if (_nicknameInputField != null)
+            bool hasSerializedButtons = serializedRetryButton != null || serializedMenuButton != null || serializedResultRankingButton != null;
+            if (hasSerializedButtons)
             {
-                _nicknameInputField.text = _currentNickname;
-                
-                // 변경 버튼 재연결
-                var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
-                foreach (var btn in nicknameButtons)
+                Debug.LogWarning("[UIManager] Result panel texts missing but serialized buttons exist - adding missing texts only");
+                if (_resultCatFace == null)
+                    _resultCatFace = CreateTextElement(_resultPanel.transform, "=^.^=", 52, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
+                if (_resultScoreText == null)
                 {
-                    var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
-                    if (btnText != null && btnText.text == "SAVE")
-                    {
-                        _nicknameChangeButton = btn;
-                        btn.onClick.RemoveAllListeners();
-                        btn.onClick.AddListener(OnNicknameChangeClicked);
-                        break;
-                    }
+                    _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0", 40, Color.black, new Vector2(0, 165), new Vector2(500, 60), isPrimary: true);
+                    _resultScoreText.fontStyle = FontStyles.Bold;
+                }
+                if (_resultApplesText == null)
+                {
+                    _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0", 28, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
+                    _secondaryTexts.Add(_resultApplesText);
+                }
+                if (_resultComboText == null)
+                {
+                    _resultComboText = CreateTextElement(_resultPanel.transform, "Max Combo: 0", 28, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
+                    _secondaryTexts.Add(_resultComboText);
+                }
+                if (_resultBestText == null)
+                    _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0", 28, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
+                if (_resultNewRecordText == null)
+                {
+                    _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!", 36, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
+                    _resultNewRecordText.fontStyle = FontStyles.Bold;
                 }
             }
             else
             {
-                // 닉네임 입력 필드가 없으면 생성
-                Debug.LogWarning("[UIManager] Nickname input not found, creating...");
-                var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
-                if (nicknameContainer != null)
-                    Destroy(nicknameContainer.gameObject);
-                CreateNicknameInput(_resultPanel.transform);
+                Debug.LogWarning("[UIManager] Result panel elements missing, recreating result panel...");
+                Destroy(_resultPanel);
+                CreateResultPanel();
+                goto skipResultNickname;
             }
         }
+
+        // 닉네임 입력 필드 재참조 (패널 보존된 경우)
+        _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
+        if (_nicknameInputField != null)
+        {
+            _nicknameInputField.text = "";
+            
+            var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
+            foreach (var btn in nicknameButtons)
+            {
+                var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnText != null && btnText.text == "SAVE")
+                {
+                    _nicknameChangeButton = btn;
+                    btn.onClick.RemoveAllListeners();
+                    btn.onClick.AddListener(OnNicknameChangeClicked);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[UIManager] Nickname input not found, creating...");
+            var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
+            if (nicknameContainer != null)
+                Destroy(nicknameContainer.gameObject);
+            CreateNicknameInput(_resultPanel.transform);
+        }
+        skipResultNickname:;
 
         // 메인메뉴 요소
         var menuTexts = _mainMenuPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
@@ -1198,20 +1228,16 @@ public class UIManager : MonoBehaviour
         {
             serializedRetryButton.onClick.RemoveAllListeners();
             serializedRetryButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.RestartGame(); });
-            _primaryButtons.Add(serializedRetryButton);
         }
         if (serializedMenuButton != null)
         {
             serializedMenuButton.onClick.RemoveAllListeners();
             serializedMenuButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
-            _secondaryButtons.Add(serializedMenuButton);
         }
         if (serializedResultRankingButton != null)
         {
             serializedResultRankingButton.onClick.RemoveAllListeners();
             serializedResultRankingButton.onClick.AddListener(() => { PlayButtonSound(); ShowLeaderboard(); });
-            ResetButtonColor(serializedResultRankingButton, CAT_EYE_GOLD);
-            _secondaryButtons.Add(serializedResultRankingButton);
         }
 
         // 결과 화면 비직렬화 버튼 재연결
@@ -2327,8 +2353,6 @@ public class UIManager : MonoBehaviour
         {
             serializedResultRankingButton.onClick.RemoveAllListeners();
             serializedResultRankingButton.onClick.AddListener(() => { PlayButtonSound(); ShowLeaderboard(); });
-            ResetButtonColor(serializedResultRankingButton, CAT_EYE_GOLD);
-            _secondaryButtons.Add(serializedResultRankingButton);
         }
         else
         {
@@ -2345,7 +2369,6 @@ public class UIManager : MonoBehaviour
         {
             serializedRetryButton.onClick.RemoveAllListeners();
             serializedRetryButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.RestartGame(); });
-            _primaryButtons.Add(serializedRetryButton);
         }
         else
         {
@@ -2362,7 +2385,6 @@ public class UIManager : MonoBehaviour
         {
             serializedMenuButton.onClick.RemoveAllListeners();
             serializedMenuButton.onClick.AddListener(() => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
-            _secondaryButtons.Add(serializedMenuButton);
         }
         else
         {
@@ -2377,18 +2399,33 @@ public class UIManager : MonoBehaviour
         _resultPanel.SetActive(false);
     }
 
+    public void CaptureSessionScore(int score, int combo)
+    {
+        _currentSessionScore = score;
+        _currentSessionCombo = combo;
+        _sessionSubmitted = false;
+        Debug.Log($"[UIManager] Session captured at EndGame: {score} (combo: {combo})");
+    }
+
     private void SubmitSessionIfNeeded()
     {
         if (_sessionSubmitted || _currentSessionScore <= 0) return;
-        _sessionSubmitted = true;
 
-        Debug.Log($"[UIManager] Submitting score: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
+        string nickname = _currentNickname;
+        if (string.IsNullOrEmpty(nickname))
+        {
+            Debug.LogWarning("[UIManager] Nickname is empty, skipping submission");
+            return;
+        }
+
+        _sessionSubmitted = true;
+        Debug.Log($"[UIManager] Submitting score: {nickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
 
         if (LocalLeaderboardManager.Instance != null)
-            LocalLeaderboardManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
+            LocalLeaderboardManager.Instance.SubmitScore(nickname, _currentSessionScore, _currentSessionCombo);
 
         if (FirebaseManager.Instance != null)
-            FirebaseManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
+            FirebaseManager.Instance.SubmitScore(nickname, _currentSessionScore, _currentSessionCombo);
     }
 
     private void PopulateResult()
@@ -2414,11 +2451,6 @@ public class UIManager : MonoBehaviour
         _resultComboText.text = $"Max Combo: {sm.MaxCombo}";
         _resultBestText.text = $"Best: {sm.BestScore}";
         
-        _currentSessionScore = sm.Score;
-        _currentSessionCombo = sm.MaxCombo;
-        _sessionSubmitted = false;
-        Debug.Log($"[UIManager] Session stored: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
-
         if (sm.Score <= 30)
             _resultCatFace.text = "=_=   Meh...";
         else if (sm.Score <= 80)
@@ -2434,18 +2466,12 @@ public class UIManager : MonoBehaviour
         if (isNewRecord)
             StartCoroutine(CoPulseNewRecord());
         
-        // ⭐ 닉네임을 PlayerPrefs에서 다시 로드 (저장된 값 반영)
-        if (PlayerPrefs.HasKey("PlayerNickname"))
-        {
-            _currentNickname = PlayerPrefs.GetString("PlayerNickname");
-            Debug.Log($"[UIManager] ✅ Nickname reloaded from PlayerPrefs in PopulateResult: '{_currentNickname}'");
-        }
-        
-        // 닉네임 입력 필드 업데이트
+        // 닉네임 입력 필드를 비움 (매 게임마다 새로 입력)
+        _currentNickname = "";
         if (_nicknameInputField != null)
         {
-            _nicknameInputField.text = _currentNickname;
-            Debug.Log($"[UIManager] ✅ Nickname input field set to: '{_nicknameInputField.text}'");
+            _nicknameInputField.text = "";
+            Debug.Log("[UIManager] Nickname field cleared for new input");
         }
     }
 
@@ -3339,25 +3365,20 @@ public class UIManager : MonoBehaviour
         }
         
         string newNickname = _nicknameInputField.text.Trim();
-        Debug.Log($"[UIManager] Input field text: '{newNickname}'");
         
-        string oldNickname = _currentNickname;
-        SaveNickname(newNickname);
-        
-        // 입력 필드 업데이트 (저장된 닉네임으로)
-        _nicknameInputField.text = _currentNickname;
-        
-        // PlayerPrefs 강제 저장 확인
+        if (string.IsNullOrEmpty(newNickname))
+        {
+            Debug.LogWarning("[UIManager] Empty nickname, cannot save");
+            return;
+        }
+
+        _currentNickname = newNickname;
+        PlayerPrefs.SetString("PlayerNickname", newNickname);
         PlayerPrefs.Save();
-        string verified = PlayerPrefs.GetString("PlayerNickname", "NOT_FOUND");
-        Debug.Log($"[UIManager] 🔍 PlayerPrefs verification after save: '{verified}'");
+        Debug.Log($"[UIManager] Nickname saved: '{_currentNickname}'");
         
-        if (oldNickname != _currentNickname)
-            Debug.Log($"[UIManager] Nickname changed: '{oldNickname}' → '{_currentNickname}' (will be used when leaving result screen)");
-        else
-            Debug.Log($"[UIManager] Nickname unchanged: '{_currentNickname}'");
+        SubmitSessionIfNeeded();
         
-        // 저장 완료 피드백
         StartCoroutine(CoShowSavedFeedback());
     }
 
