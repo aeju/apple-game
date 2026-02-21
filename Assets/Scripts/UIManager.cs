@@ -160,10 +160,10 @@ public class UIManager : MonoBehaviour
     private Transform _leaderboardEntriesContainer;
     private GameObject _previousActivePanel; // 리더보드 열기 전 활성화된 패널
     
-    // 현재 게임 세션 점수 (닉네임 변경 시 재제출용)
+    // 현재 게임 세션 점수 (결과 화면 떠날 때 제출)
     private int _currentSessionScore = 0;
     private int _currentSessionCombo = 0;
-    private string _lastSubmittedNickname = "";
+    private bool _sessionSubmitted = false;
 
     // 공통 색상
     private static readonly Color CAT_EYE_GOLD = new Color(0.95f, 0.78f, 0.10f);
@@ -1502,19 +1502,19 @@ public class UIManager : MonoBehaviour
 
         if (state == GameState.Menu)
         {
+            SubmitSessionIfNeeded();
             UpdateMenuBestScore();
-            // 새 게임 시작 시 세션 점수 리셋
             _currentSessionScore = 0;
             _currentSessionCombo = 0;
-            _lastSubmittedNickname = "";
+            _sessionSubmitted = false;
         }
         
         if (state == GameState.Countdown)
         {
-            // 게임 시작 시 세션 점수 리셋
+            SubmitSessionIfNeeded();
             _currentSessionScore = 0;
             _currentSessionCombo = 0;
-            _lastSubmittedNickname = "";
+            _sessionSubmitted = false;
         }
 
         if (state == GameState.GameOver)
@@ -2377,6 +2377,20 @@ public class UIManager : MonoBehaviour
         _resultPanel.SetActive(false);
     }
 
+    private void SubmitSessionIfNeeded()
+    {
+        if (_sessionSubmitted || _currentSessionScore <= 0) return;
+        _sessionSubmitted = true;
+
+        Debug.Log($"[UIManager] Submitting score: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
+
+        if (LocalLeaderboardManager.Instance != null)
+            LocalLeaderboardManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
+
+        if (FirebaseManager.Instance != null)
+            FirebaseManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
+    }
+
     private void PopulateResult()
     {
         var sm = ScoreManager.Instance;
@@ -2400,11 +2414,10 @@ public class UIManager : MonoBehaviour
         _resultComboText.text = $"Max Combo: {sm.MaxCombo}";
         _resultBestText.text = $"Best: {sm.BestScore}";
         
-        // ⭐ 현재 게임 세션 점수 저장 (닉네임 변경 시 재제출용)
         _currentSessionScore = sm.Score;
         _currentSessionCombo = sm.MaxCombo;
-        _lastSubmittedNickname = _currentNickname;
-        Debug.Log($"[UIManager] 💾 Current session saved: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
+        _sessionSubmitted = false;
+        Debug.Log($"[UIManager] Session stored: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
 
         if (sm.Score <= 30)
             _resultCatFace.text = "=_=   Meh...";
@@ -3339,37 +3352,10 @@ public class UIManager : MonoBehaviour
         string verified = PlayerPrefs.GetString("PlayerNickname", "NOT_FOUND");
         Debug.Log($"[UIManager] 🔍 PlayerPrefs verification after save: '{verified}'");
         
-        // ⭐ 닉네임이 바뀌었으면 현재 게임 점수를 새 닉네임으로 다시 제출
         if (oldNickname != _currentNickname)
-        {
-            Debug.Log($"[UIManager] ✅ Nickname changed! '{oldNickname}' → '{_currentNickname}'");
-            
-            // 현재 게임 세션의 점수를 새 닉네임으로 재제출
-            if (_currentSessionScore > 0)
-            {
-                Debug.Log($"[UIManager] 📤 Re-submitting score with new nickname: {_currentNickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
-                
-                // 로컬 랭킹에 재제출
-                if (LocalLeaderboardManager.Instance != null)
-                {
-                    LocalLeaderboardManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
-                    Debug.Log($"[UIManager] ✅ Score re-submitted to local leaderboard with new nickname");
-                }
-                
-                // Firebase에도 재제출
-                if (FirebaseManager.Instance != null)
-                {
-                    FirebaseManager.Instance.SubmitScore(_currentNickname, _currentSessionScore, _currentSessionCombo);
-                    Debug.Log($"[UIManager] ✅ Score re-submitted to Firebase with new nickname");
-                }
-                
-                _lastSubmittedNickname = _currentNickname;
-            }
-        }
+            Debug.Log($"[UIManager] Nickname changed: '{oldNickname}' → '{_currentNickname}' (will be used when leaving result screen)");
         else
-        {
-            Debug.Log($"[UIManager] ℹ️ Nickname unchanged: '{_currentNickname}'");
-        }
+            Debug.Log($"[UIManager] Nickname unchanged: '{_currentNickname}'");
         
         // 저장 완료 피드백
         StartCoroutine(CoShowSavedFeedback());

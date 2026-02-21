@@ -123,38 +123,7 @@ public class GameManager : MonoBehaviour
         
         SetState(GameState.GameOver);
         ScoreManager.Instance?.SaveBestScore();
-        
-        // 점수 제출 (로컬 + Firebase)
-        if (ScoreManager.Instance != null && UIManager.Instance != null)
-        {
-            string nickname = UIManager.Instance.GetNickname();
-            int score = ScoreManager.Instance.Score;
-            int combo = ScoreManager.Instance.MaxCombo;
-            
-            Debug.Log($"[GameManager] Preparing to submit score: {nickname} - {score} (combo: {combo})");
-            
-            // 로컬 랭킹에 제출 (항상)
-            if (LocalLeaderboardManager.Instance != null)
-            {
-                LocalLeaderboardManager.Instance.SubmitScore(nickname, score, combo);
-                Debug.Log($"[GameManager] ✅ Score submitted to local leaderboard");
-            }
-            else
-            {
-                Debug.LogError("[GameManager] ❌ LocalLeaderboardManager.Instance is NULL!");
-            }
-            
-            // Firebase에도 제출 (있으면)
-            if (FirebaseManager.Instance != null)
-            {
-                FirebaseManager.Instance.SubmitScore(nickname, score, combo);
-                Debug.Log($"[GameManager] Score submitted to Firebase (may fail if not initialized)");
-            }
-        }
-        else
-        {
-            Debug.LogError("[GameManager] Cannot submit score - ScoreManager or UIManager is null!");
-        }
+        // 점수 제출은 결과 화면을 떠날 때 UIManager에서 처리 (닉네임 변경 반영)
     }
 
     /// <summary>
