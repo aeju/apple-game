@@ -49,7 +49,9 @@ public class FirebaseManager : MonoBehaviour
 #if UNITY_WEBGL && !UNITY_EDITOR
         Debug.Log("[FirebaseManager] WebGL build - Initializing via JS bridge");
         FirebaseBridge_Init();
-#elif !UNITY_WEBGL || UNITY_EDITOR
+#elif UNITY_EDITOR
+        Debug.Log("[FirebaseManager] Editor mode - Firebase SDK skipped (WebGL JS bridge only)");
+#else
         Debug.Log("[FirebaseManager] Initializing Firebase (non-WebGL platform)");
         InitializeFirebase();
 #endif
