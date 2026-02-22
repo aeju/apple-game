@@ -7259,6 +7259,8 @@ MonoBehaviour:
   menuButtonFont: {fileID: 11400000, guid: b089eb35f39ab414a8cfae53d76ea305, type: 2}
   menuButtonFontSize: 36
   buttonClickSound: {fileID: 8300000, guid: 6cdbf268558f31348b1620dc9e79578b, type: 3}
+  menuParticles:
+  - {fileID: 1834380280}
   titlePosition: {x: 0, y: 150}
   titleFontSize: 72
   titleFont: {fileID: 0}
@@ -7298,6 +7300,22 @@ MonoBehaviour:
   countdownNumberFontSize: 120
   countdownCatFaceFont: {fileID: 11400000, guid: 9535d3d330cc8924c91fc8c311710eed, type: 2}
   countdownCatFaceFontSize: 52
+  resultPanelBgColor: {r: 1, g: 1, b: 1, a: 1}
+  serializedResultCatFace: {fileID: 0}
+  serializedResultTitle: {fileID: 0}
+  serializedResultScoreText: {fileID: 0}
+  serializedResultApplesText: {fileID: 0}
+  serializedResultComboText: {fileID: 0}
+  serializedResultBestText: {fileID: 0}
+  serializedResultNewRecordText: {fileID: 0}
+  resultFont: {fileID: 0}
+  resultTitleFontSize: 48
+  resultCatFaceFontSize: 52
+  resultScoreFontSize: 40
+  resultDetailFontSize: 28
+  resultNewRecordFontSize: 36
+  serializedNicknameInput: {fileID: 0}
+  serializedNicknameSaveButton: {fileID: 0}
   serializedRetryButton: {fileID: 680396862}
   serializedMenuButton: {fileID: 51240322}
   serializedResultRankingButton: {fileID: 1773848012}
@@ -9533,9 +9551,9 @@ ParticleSystem:
         m_RotationOrder: 4
     startSpeed:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0.5
-      minScalar: 5
+      minMaxState: 3
+      scalar: 0.4
+      minScalar: 0.1
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -9586,9 +9604,9 @@ ParticleSystem:
         m_RotationOrder: 4
     startColor:
       serializedVersion: 2
-      minMaxState: 0
-      minColor: {r: 1, g: 1, b: 1, a: 1}
-      maxColor: {r: 1, g: 1, b: 1, a: 1}
+      minMaxState: 2
+      minColor: {r: 0.42767292, g: 0.42767292, b: 0.42767292, a: 1}
+      maxColor: {r: 0.91823894, g: 0.91823894, b: 0.91823894, a: 1}
       maxGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -9653,7 +9671,7 @@ ParticleSystem:
       serializedVersion: 2
       minMaxState: 3
       scalar: 1
-      minScalar: 0.5
+      minScalar: 0.4
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -9976,8 +9994,8 @@ ParticleSystem:
     gravityModifier:
       serializedVersion: 2
       minMaxState: 3
-      scalar: 0.05
-      minScalar: 0.02
+      scalar: 0.03
+      minScalar: 0.01
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10116,7 +10134,7 @@ ParticleSystem:
     sphericalDirectionAmount: 0
     randomPositionAmount: 0
     radius:
-      value: 5
+      value: 4
       mode: 0
       spread: 0
       speed:
@@ -14130,7 +14148,7 @@ Transform:
   m_GameObject: {fileID: 1834380280}
   serializedVersion: 2
   m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 6.14, z: -9}
+  m_LocalPosition: {x: 0, y: 6.11, z: 50}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

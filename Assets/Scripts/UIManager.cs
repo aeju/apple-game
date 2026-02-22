@@ -31,6 +31,10 @@ public class UIManager : MonoBehaviour
     [Tooltip("버튼 클릭 시 재생할 AudioClip (null이면 사운드 없음)")]
     [SerializeField] private AudioClip buttonClickSound = null;
 
+    [Header("Particles")]
+    [Tooltip("게임 플레이 중 비활성화할 파티클 시스템 (메뉴/카운트다운/결과에서는 활성화)")]
+    [SerializeField] private GameObject[] menuParticles = new GameObject[0];
+
     [Header("Main Menu - Title")]
     [SerializeField] private Vector2 titlePosition = new Vector2(0, 150);
     [SerializeField] private float titleFontSize = 72f;
@@ -103,6 +107,37 @@ public class UIManager : MonoBehaviour
     [SerializeField] private float countdownNumberFontSize = 120f;
     [SerializeField] private TMP_FontAsset countdownCatFaceFont = null;
     [SerializeField] private float countdownCatFaceFontSize = 52f;
+
+    [Header("Result - Background")]
+    [SerializeField] private Color resultPanelBgColor = Color.white;
+
+    [Header("Result - Texts")]
+    [Tooltip("씬에 미리 배치한 고양이 얼굴 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultCatFace = null;
+    [Tooltip("씬에 미리 배치한 GAME OVER 타이틀 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultTitle = null;
+    [Tooltip("씬에 미리 배치한 점수 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultScoreText = null;
+    [Tooltip("씬에 미리 배치한 발바닥 수 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultApplesText = null;
+    [Tooltip("씬에 미리 배치한 콤보 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultComboText = null;
+    [Tooltip("씬에 미리 배치한 최고점수 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultBestText = null;
+    [Tooltip("씬에 미리 배치한 신기록 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedResultNewRecordText = null;
+    [SerializeField] private TMP_FontAsset resultFont = null;
+    [SerializeField] private float resultTitleFontSize = 48f;
+    [SerializeField] private float resultCatFaceFontSize = 52f;
+    [SerializeField] private float resultScoreFontSize = 40f;
+    [SerializeField] private float resultDetailFontSize = 28f;
+    [SerializeField] private float resultNewRecordFontSize = 36f;
+
+    [Header("Result - Nickname Input")]
+    [Tooltip("씬에 미리 배치한 닉네임 입력 필드 (null이면 자동 생성)")]
+    [SerializeField] private TMP_InputField serializedNicknameInput = null;
+    [Tooltip("씬에 미리 배치한 닉네임 SAVE 버튼 (null이면 자동 생성)")]
+    [SerializeField] private Button serializedNicknameSaveButton = null;
 
     [Header("Result - Buttons")]
     [Tooltip("씬에 미리 배치한 RETRY 버튼 (null이면 자동 생성)")]
@@ -812,94 +847,111 @@ public class UIManager : MonoBehaviour
             if (countdownNumberFont != null) _countdownText.font = countdownNumberFont;
         }
 
-        // 결과 화면 요소
+        // 결과 화면 요소: 직렬화 우선 → 텍스트 내용 검색 → 생성
+        _resultCatFace = serializedResultCatFace;
+        _resultScoreText = serializedResultScoreText;
+        _resultApplesText = serializedResultApplesText;
+        _resultComboText = serializedResultComboText;
+        _resultBestText = serializedResultBestText;
+        _resultNewRecordText = serializedResultNewRecordText;
+
         var resultTexts = _resultPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
         foreach (var txt in resultTexts)
         {
-            if (txt.text.Contains("Score:"))
+            if (_resultScoreText == null && txt.text.Contains("Score:"))
                 _resultScoreText = txt;
-            else if (txt.text.Contains("Paws:"))
+            else if (_resultApplesText == null && txt.text.Contains("Paws:"))
                 _resultApplesText = txt;
-            else if (txt.text.Contains("Best:"))
+            else if (_resultBestText == null && txt.text.Contains("Best:"))
                 _resultBestText = txt;
-            else if (txt.text.Contains("Combo:"))
+            else if (_resultComboText == null && txt.text.Contains("Combo:"))
                 _resultComboText = txt;
-            else if (txt.text.Contains("RECORD"))
+            else if (_resultNewRecordText == null && txt.text.Contains("RECORD"))
                 _resultNewRecordText = txt;
-            else if (txt.text.Contains("=^") || txt.text.Contains("Meh"))
+            else if (_resultCatFace == null && (txt.text.Contains("=^") || txt.text.Contains("Meh")))
                 _resultCatFace = txt;
         }
-        
-        // 필수 요소가 없으면 결과 패널 재생성 (단, 직렬화된 버튼이 있으면 보존)
-        if (_resultScoreText == null || _resultCatFace == null || _resultNewRecordText == null)
+
+        // 없는 텍스트만 생성 (패널 유지)
+        if (_resultCatFace == null)
         {
-            bool hasSerializedButtons = serializedRetryButton != null || serializedMenuButton != null || serializedResultRankingButton != null;
-            if (hasSerializedButtons)
+            _resultCatFace = CreateTextElement(_resultPanel.transform, "=^.^=",
+                resultCatFaceFontSize, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
+            _resultCatFace.fontStyle = FontStyles.Bold;
+            if (resultFont != null) _resultCatFace.font = resultFont;
+        }
+        if (_resultScoreText == null)
+        {
+            _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0",
+                resultScoreFontSize, Color.black, new Vector2(0, 165), new Vector2(500, 60), isPrimary: true);
+            _resultScoreText.fontStyle = FontStyles.Bold;
+            if (resultFont != null) _resultScoreText.font = resultFont;
+        }
+        if (_resultApplesText == null)
+        {
+            _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0",
+                resultDetailFontSize, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
+            _secondaryTexts.Add(_resultApplesText);
+            if (resultFont != null) _resultApplesText.font = resultFont;
+        }
+        if (_resultComboText == null)
+        {
+            _resultComboText = CreateTextElement(_resultPanel.transform, "Max Combo: 0",
+                resultDetailFontSize, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
+            _secondaryTexts.Add(_resultComboText);
+            if (resultFont != null) _resultComboText.font = resultFont;
+        }
+        if (_resultBestText == null)
+        {
+            _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
+                resultDetailFontSize, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
+            if (resultFont != null) _resultBestText.font = resultFont;
+        }
+        if (_resultNewRecordText == null)
+        {
+            _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!",
+                resultNewRecordFontSize, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
+            _resultNewRecordText.fontStyle = FontStyles.Bold;
+            if (resultFont != null) _resultNewRecordText.font = resultFont;
+        }
+
+        // 닉네임 입력 필드: 직렬화 우선
+        if (serializedNicknameInput != null && serializedNicknameSaveButton != null)
+        {
+            _nicknameInputField = serializedNicknameInput;
+            _nicknameChangeButton = serializedNicknameSaveButton;
+            _nicknameInputField.characterLimit = 12;
+            _nicknameInputField.text = _currentNickname;
+            _nicknameChangeButton.onClick.RemoveAllListeners();
+            _nicknameChangeButton.onClick.AddListener(OnNicknameChangeClicked);
+        }
+        else
+        {
+            _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
+            if (_nicknameInputField != null)
             {
-                Debug.LogWarning("[UIManager] Result panel texts missing but serialized buttons exist - adding missing texts only");
-                if (_resultCatFace == null)
-                    _resultCatFace = CreateTextElement(_resultPanel.transform, "=^.^=", 52, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
-                if (_resultScoreText == null)
+                _nicknameInputField.text = "";
+                var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
+                foreach (var btn in nicknameButtons)
                 {
-                    _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0", 40, Color.black, new Vector2(0, 165), new Vector2(500, 60), isPrimary: true);
-                    _resultScoreText.fontStyle = FontStyles.Bold;
-                }
-                if (_resultApplesText == null)
-                {
-                    _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0", 28, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
-                    _secondaryTexts.Add(_resultApplesText);
-                }
-                if (_resultComboText == null)
-                {
-                    _resultComboText = CreateTextElement(_resultPanel.transform, "Max Combo: 0", 28, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
-                    _secondaryTexts.Add(_resultComboText);
-                }
-                if (_resultBestText == null)
-                    _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0", 28, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
-                if (_resultNewRecordText == null)
-                {
-                    _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!", 36, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
-                    _resultNewRecordText.fontStyle = FontStyles.Bold;
+                    var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
+                    if (btnText != null && btnText.text == "SAVE")
+                    {
+                        _nicknameChangeButton = btn;
+                        btn.onClick.RemoveAllListeners();
+                        btn.onClick.AddListener(OnNicknameChangeClicked);
+                        break;
+                    }
                 }
             }
             else
             {
-                Debug.LogWarning("[UIManager] Result panel elements missing, recreating result panel...");
-                Destroy(_resultPanel);
-                CreateResultPanel();
-                goto skipResultNickname;
+                var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
+                if (nicknameContainer != null)
+                    Destroy(nicknameContainer.gameObject);
+                CreateNicknameInput(_resultPanel.transform);
             }
         }
-
-        // 닉네임 입력 필드 재참조 (패널 보존된 경우)
-        _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
-        if (_nicknameInputField != null)
-        {
-            _nicknameInputField.text = "";
-            
-            var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
-            foreach (var btn in nicknameButtons)
-            {
-                var btnText = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnText != null && btnText.text == "SAVE")
-                {
-                    _nicknameChangeButton = btn;
-                    btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(OnNicknameChangeClicked);
-                    break;
-                }
-            }
-        }
-        else
-        {
-            Debug.LogWarning("[UIManager] Nickname input not found, creating...");
-            var nicknameContainer = _resultPanel.transform.Find("NicknameContainer");
-            if (nicknameContainer != null)
-                Destroy(nicknameContainer.gameObject);
-            CreateNicknameInput(_resultPanel.transform);
-        }
-        skipResultNickname:;
-
         // 메인메뉴 요소
         var menuTexts = _mainMenuPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
         foreach (var txt in menuTexts)
@@ -1305,6 +1357,10 @@ public class UIManager : MonoBehaviour
         if (_hudPanel != null) _hudPanel.SetActive(state == GameState.Playing || state == GameState.Countdown);
         if (_countdownPanel != null) _countdownPanel.SetActive(state == GameState.Countdown);
         if (_resultPanel != null) _resultPanel.SetActive(state == GameState.GameOver);
+
+        bool showParticles = state != GameState.Playing;
+        foreach (var p in menuParticles)
+            if (p != null) p.SetActive(showParticles);
 
         Debug.Log($"[UIManager] MainMenu active: {_mainMenuPanel?.activeSelf}");
 
@@ -2027,38 +2083,99 @@ public class UIManager : MonoBehaviour
 
     private void CreateResultPanel()
     {
-        _resultPanel = CreatePanel("ResultPanel", Color.white, true);
+        _resultPanel = CreatePanel("ResultPanel", resultPanelBgColor, true);
         SetFullStretch(_resultPanel.GetComponent<RectTransform>());
 
-        _resultCatFace = CreateTextElement(_resultPanel.transform, "",
-            52, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
-        _resultCatFace.fontStyle = FontStyles.Bold;
+        // 고양이 얼굴
+        if (serializedResultCatFace != null)
+            _resultCatFace = serializedResultCatFace;
+        else
+        {
+            _resultCatFace = CreateTextElement(_resultPanel.transform, "",
+                resultCatFaceFontSize, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
+            _resultCatFace.fontStyle = FontStyles.Bold;
+            if (resultFont != null) _resultCatFace.font = resultFont;
+        }
 
-        var title = CreateTextElement(_resultPanel.transform, "GAME OVER!",
-            48, CAT_EYE_GOLD, new Vector2(0, 250), new Vector2(600, 80), isPrimary: false);
-        title.fontStyle = FontStyles.Bold;
+        // GAME OVER 타이틀
+        if (serializedResultTitle != null)
+        { /* Inspector 할당 사용 */ }
+        else
+        {
+            var title = CreateTextElement(_resultPanel.transform, "GAME OVER!",
+                resultTitleFontSize, CAT_EYE_GOLD, new Vector2(0, 250), new Vector2(600, 80), isPrimary: false);
+            title.fontStyle = FontStyles.Bold;
+            if (resultFont != null) title.font = resultFont;
+        }
 
-        _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0",
-            40, Color.black, new Vector2(0, 165), new Vector2(500, 60), isPrimary: true);
-        _resultScoreText.fontStyle = FontStyles.Bold;
+        // 점수
+        if (serializedResultScoreText != null)
+            _resultScoreText = serializedResultScoreText;
+        else
+        {
+            _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0",
+                resultScoreFontSize, Color.black, new Vector2(0, 165), new Vector2(500, 60), isPrimary: true);
+            _resultScoreText.fontStyle = FontStyles.Bold;
+            if (resultFont != null) _resultScoreText.font = resultFont;
+        }
 
-        _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0",
-            28, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
-        _secondaryTexts.Add(_resultApplesText);
+        // 발바닥 수
+        if (serializedResultApplesText != null)
+            _resultApplesText = serializedResultApplesText;
+        else
+        {
+            _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0",
+                resultDetailFontSize, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
+            _secondaryTexts.Add(_resultApplesText);
+            if (resultFont != null) _resultApplesText.font = resultFont;
+        }
 
-        _resultComboText = CreateTextElement(_resultPanel.transform, "Max Combo: 0",
-            28, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
-        _secondaryTexts.Add(_resultComboText);
+        // 콤보
+        if (serializedResultComboText != null)
+            _resultComboText = serializedResultComboText;
+        else
+        {
+            _resultComboText = CreateTextElement(_resultPanel.transform, "Max Combo: 0",
+                resultDetailFontSize, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
+            _secondaryTexts.Add(_resultComboText);
+            if (resultFont != null) _resultComboText.font = resultFont;
+        }
 
-        _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
-            28, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
+        // 최고점수
+        if (serializedResultBestText != null)
+            _resultBestText = serializedResultBestText;
+        else
+        {
+            _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
+                resultDetailFontSize, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
+            if (resultFont != null) _resultBestText.font = resultFont;
+        }
 
         // 닉네임 입력 영역
-        CreateNicknameInput(_resultPanel.transform);
+        if (serializedNicknameInput != null && serializedNicknameSaveButton != null)
+        {
+            _nicknameInputField = serializedNicknameInput;
+            _nicknameChangeButton = serializedNicknameSaveButton;
+            _nicknameInputField.characterLimit = 12;
+            _nicknameInputField.text = _currentNickname;
+            _nicknameChangeButton.onClick.RemoveAllListeners();
+            _nicknameChangeButton.onClick.AddListener(OnNicknameChangeClicked);
+        }
+        else
+        {
+            CreateNicknameInput(_resultPanel.transform);
+        }
 
-        _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!",
-            36, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
-        _resultNewRecordText.fontStyle = FontStyles.Bold;
+        // 신기록
+        if (serializedResultNewRecordText != null)
+            _resultNewRecordText = serializedResultNewRecordText;
+        else
+        {
+            _resultNewRecordText = CreateTextElement(_resultPanel.transform, "PURRFECT RECORD!",
+                resultNewRecordFontSize, CAT_EYE_BRIGHT, new Vector2(0, -80), new Vector2(500, 50), isPrimary: false);
+            _resultNewRecordText.fontStyle = FontStyles.Bold;
+            if (resultFont != null) _resultNewRecordText.font = resultFont;
+        }
 
         // 랭킹 버튼
         if (serializedResultRankingButton != null)
