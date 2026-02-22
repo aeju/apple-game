@@ -43,6 +43,10 @@ public class UIManager : MonoBehaviour
     [Header("Main Menu - Cat Logo")]
     [SerializeField] private Vector2 catLogoPosition = new Vector2(0, 300);
     [SerializeField] private Vector2 catLogoSize = new Vector2(200, 200);
+    [Tooltip("고양이 로고 펄스 애니메이션 속도 (클수록 빠름)")]
+    [SerializeField] private float catAnimationSpeed = 1.2f;
+    [Tooltip("고양이 로고 펄스 애니메이션 크기 범위 (0.1 = 0.9배~1.1배)")]
+    [SerializeField] private float catAnimationAmplitude = 0.1f;
 
     [Header("Main Menu - PLAY / RANKING")]
     [Tooltip("씬에 미리 배치한 PLAY 버튼 (null이면 자동 생성)")]
@@ -98,9 +102,49 @@ public class UIManager : MonoBehaviour
     [Tooltip("씬에 미리 배치한 결과화면 RANKING 버튼 (null이면 자동 생성)")]
     [SerializeField] private Button serializedResultRankingButton = null;
 
-    [Header("Leaderboard - Buttons")]
+    [Header("Leaderboard - Title")]
+    [SerializeField] private string leaderboardTitleText = "🏆 LEADERBOARD 🏆";
+    [SerializeField] private float leaderboardTitleFontSize = 48f;
+    [SerializeField] private Color leaderboardTitleColor = new Color(0.85f, 0.65f, 0.13f);
+    [SerializeField] private Vector2 leaderboardTitlePosition = new Vector2(0, 350);
+    [SerializeField] private TMP_FontAsset leaderboardTitleFont = null;
+
+    [Header("Leaderboard - Scroll Area")]
+    [SerializeField] private Vector2 leaderboardScrollAreaSize = new Vector2(600, 550);
+    [SerializeField] private Color leaderboardScrollBgColor = new Color(1f, 1f, 1f, 0.3f);
+
+    [Header("Leaderboard - Entry Style")]
+    [SerializeField] private float leaderboardEntryHeight = 68f;
+    [SerializeField] private float leaderboardEntrySpacing = 75f;
+    [SerializeField] private float leaderboardRankFontSize = 36f;
+    [SerializeField] private float leaderboardNicknameFontSize = 33f;
+    [SerializeField] private float leaderboardScoreFontSize = 36f;
+    [SerializeField] private TMP_FontAsset leaderboardEntryFont = null;
+    [Tooltip("1등 배경색")]
+    [SerializeField] private Color leaderboardGoldColor = new Color(1f, 0.84f, 0f, 0.3f);
+    [Tooltip("2등 배경색")]
+    [SerializeField] private Color leaderboardSilverColor = new Color(0.75f, 0.75f, 0.75f, 0.3f);
+    [Tooltip("3등 배경색")]
+    [SerializeField] private Color leaderboardBronzeColor = new Color(0.8f, 0.5f, 0.2f, 0.3f);
+    [Tooltip("4등 이하 배경색")]
+    [SerializeField] private Color leaderboardDefaultColor = new Color(1f, 1f, 1f, 0.1f);
+    [Tooltip("상위 3명 순위/점수 색상")]
+    [SerializeField] private Color leaderboardTopRankColor = new Color(0.85f, 0.65f, 0.13f);
+    [Tooltip("상위 3명 닉네임 색상")]
+    [SerializeField] private Color leaderboardTopNicknameColor = Color.black;
+    [Tooltip("4등 이하 텍스트 색상")]
+    [SerializeField] private Color leaderboardNormalTextColor = Color.gray;
+
+    [Header("Leaderboard - Empty Message")]
+    [SerializeField] private string leaderboardEmptyMessage = "No records yet!\nPlay to set your first score!";
+    [SerializeField] private float leaderboardEmptyFontSize = 28f;
+
+    [Header("Leaderboard - Close Button")]
     [Tooltip("씬에 미리 배치한 CLOSE 버튼 (null이면 자동 생성)")]
     [SerializeField] private Button serializedCloseButton = null;
+    [SerializeField] private Vector2 leaderboardCloseButtonPosition = new Vector2(0, -360);
+    [SerializeField] private Vector2 leaderboardCloseButtonSize = new Vector2(280, 65);
+    [SerializeField] private float leaderboardCloseButtonFontSize = 28f;
 
     // 패널
     private GameObject _mainMenuPanel;
@@ -2106,26 +2150,23 @@ public class UIManager : MonoBehaviour
         _leaderboardPanel = CreatePanel("LeaderboardPanel", Color.white, true);
         SetFullStretch(_leaderboardPanel.GetComponent<RectTransform>());
 
-        // 타이틀
-        var title = CreateTextElement(_leaderboardPanel.transform, "🏆 LEADERBOARD 🏆",
-            48, CAT_EYE_GOLD, new Vector2(0, 350), new Vector2(700, 80), isPrimary: false);
+        var title = CreateTextElement(_leaderboardPanel.transform, leaderboardTitleText,
+            leaderboardTitleFontSize, leaderboardTitleColor, leaderboardTitlePosition, new Vector2(700, 80), isPrimary: false);
         title.fontStyle = FontStyles.Bold;
+        if (leaderboardTitleFont != null) title.font = leaderboardTitleFont;
 
-        // 스크롤 영역 컨테이너
         var scrollArea = new GameObject("ScrollArea");
         scrollArea.transform.SetParent(_leaderboardPanel.transform, false);
         var scrollAreaRt = scrollArea.AddComponent<RectTransform>();
         scrollAreaRt.anchoredPosition = new Vector2(0, 0);
-        scrollAreaRt.sizeDelta = new Vector2(600, 550);
+        scrollAreaRt.sizeDelta = leaderboardScrollAreaSize;
 
-        // 배경
         var scrollBg = scrollArea.AddComponent<Image>();
-        scrollBg.color = new Color(1f, 1f, 1f, 0.3f);
+        scrollBg.color = leaderboardScrollBgColor;
         scrollBg.sprite = CreateRoundedRectSprite(100, 100, 15);
         scrollBg.type = Image.Type.Sliced;
         _panelBackgrounds.Add(scrollBg);
 
-        // 엔트리 컨테이너 (실제 랭킹 항목들이 들어갈 곳)
         var entriesContainer = new GameObject("Entries");
         entriesContainer.transform.SetParent(scrollArea.transform, false);
         var entriesRt = entriesContainer.AddComponent<RectTransform>();
@@ -2137,7 +2178,6 @@ public class UIManager : MonoBehaviour
 
         _leaderboardEntriesContainer = entriesContainer.transform;
 
-        // Close 버튼
         if (serializedCloseButton != null)
         {
             serializedCloseButton.onClick.RemoveAllListeners();
@@ -2147,7 +2187,7 @@ public class UIManager : MonoBehaviour
         else
         {
             var closeBtn = CreateButton(_leaderboardPanel.transform, "CLOSE", Color.white,
-                new Vector2(0, -360), new Vector2(280, 65), 28, () =>
+                leaderboardCloseButtonPosition, leaderboardCloseButtonSize, leaderboardCloseButtonFontSize, () =>
                 {
                     HideLeaderboard();
                 });
@@ -2291,8 +2331,8 @@ public class UIManager : MonoBehaviour
         {
             Debug.LogWarning("[UIManager] No leaderboard entries to display");
             var emptyMsg = CreateTextElement(_leaderboardEntriesContainer, 
-                "No records yet!\nPlay to set your first score!",
-                28, Color.gray, new Vector2(0, -100), new Vector2(550, 200), isPrimary: false);
+                leaderboardEmptyMessage,
+                leaderboardEmptyFontSize, leaderboardNormalTextColor, new Vector2(0, -100), new Vector2(550, 200), isPrimary: false);
             emptyMsg.alignment = TextAlignmentOptions.Center;
             
             var containerRt = _leaderboardEntriesContainer.GetComponent<RectTransform>();
@@ -2307,7 +2347,7 @@ public class UIManager : MonoBehaviour
         foreach (var entry in entries)
         {
             CreateLeaderboardEntry(rank, entry.nickname, entry.score, yOffset);
-            yOffset -= 50f;
+            yOffset -= leaderboardEntrySpacing;
             rank++;
         }
 
@@ -2328,41 +2368,43 @@ public class UIManager : MonoBehaviour
         entryRt.anchorMax = new Vector2(1, 1);
         entryRt.pivot = new Vector2(0.5f, 1);
         entryRt.anchoredPosition = new Vector2(0, yOffset);
-        entryRt.sizeDelta = new Vector2(0, 45);
+        entryRt.sizeDelta = new Vector2(0, leaderboardEntryHeight);
 
-        // 배경 (상위 3명은 특별한 색상)
         var bg = entry.AddComponent<Image>();
         if (rank == 1)
-            bg.color = new Color(1f, 0.84f, 0f, 0.3f); // 금색
+            bg.color = leaderboardGoldColor;
         else if (rank == 2)
-            bg.color = new Color(0.75f, 0.75f, 0.75f, 0.3f); // 은색
+            bg.color = leaderboardSilverColor;
         else if (rank == 3)
-            bg.color = new Color(0.8f, 0.5f, 0.2f, 0.3f); // 동색
+            bg.color = leaderboardBronzeColor;
         else
-            bg.color = new Color(1f, 1f, 1f, 0.1f); // 투명
+            bg.color = leaderboardDefaultColor;
         
         bg.sprite = CreateRoundedRectSprite(100, 100, 10);
         bg.type = Image.Type.Sliced;
 
-        // Rank
+        Color rankScoreColor = rank <= 3 ? leaderboardTopRankColor : leaderboardNormalTextColor;
+        Color nickColor = rank <= 3 ? leaderboardTopNicknameColor : leaderboardNormalTextColor;
+
         var rankText = CreateTextElement(entry.transform, $"{rank}.",
-            24, rank <= 3 ? CAT_EYE_GOLD : Color.gray, 
-            new Vector2(-250, 0), new Vector2(60, 45), isPrimary: false);
+            leaderboardRankFontSize, rankScoreColor, 
+            new Vector2(-250, 0), new Vector2(60, leaderboardEntryHeight), isPrimary: false);
         rankText.alignment = TextAlignmentOptions.MidlineLeft;
         rankText.fontStyle = FontStyles.Bold;
+        if (leaderboardEntryFont != null) rankText.font = leaderboardEntryFont;
 
-        // Nickname
         var nicknameText = CreateTextElement(entry.transform, nickname,
-            22, rank <= 3 ? Color.black : Color.gray,
-            new Vector2(-50, 0), new Vector2(300, 45), isPrimary: rank <= 3);
+            leaderboardNicknameFontSize, nickColor,
+            new Vector2(-50, 0), new Vector2(300, leaderboardEntryHeight), isPrimary: rank <= 3);
         nicknameText.alignment = TextAlignmentOptions.MidlineLeft;
+        if (leaderboardEntryFont != null) nicknameText.font = leaderboardEntryFont;
 
-        // Score
         var scoreText = CreateTextElement(entry.transform, score.ToString(),
-            24, rank <= 3 ? CAT_EYE_GOLD : Color.gray,
-            new Vector2(200, 0), new Vector2(120, 45), isPrimary: false);
+            leaderboardScoreFontSize, rankScoreColor,
+            new Vector2(200, 0), new Vector2(120, leaderboardEntryHeight), isPrimary: false);
         scoreText.alignment = TextAlignmentOptions.MidlineRight;
         scoreText.fontStyle = FontStyles.Bold;
+        if (leaderboardEntryFont != null) scoreText.font = leaderboardEntryFont;
     }
 
     private void ShowPlaceholderLeaderboard()
@@ -2829,8 +2871,7 @@ public class UIManager : MonoBehaviour
             
             time += Time.deltaTime;
             
-            // 🐱 부드럽게 커졌다 작아졌다 (0.9배 ~ 1.1배)
-            float scale = 1f + Mathf.Sin(time * 1.2f) * 0.1f;
+            float scale = 1f + Mathf.Sin(time * catAnimationSpeed) * catAnimationAmplitude;
             _catSilhouette.transform.localScale = Vector3.one * scale;
             
             yield return null;

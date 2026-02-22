@@ -61,6 +61,7 @@ public class GameManager : MonoBehaviour
         ScoreManager.Instance?.ResetScore();
         GridManager.Instance?.GenerateGrid();
 
+        OnTimerTick?.Invoke(TimeRemaining);
         OnHintsChanged?.Invoke(HintsLeft);
         OnShufflesChanged?.Invoke(ShufflesLeft);
 
