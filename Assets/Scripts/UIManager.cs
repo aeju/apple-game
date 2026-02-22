@@ -60,12 +60,25 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Vector2 bestScorePosition = new Vector2(0, -190);
     [SerializeField] private float bestScoreFontSize = 24f;
 
-    [Header("Main Menu - Theme Toggle")]
-    [Tooltip("씬에 미리 배치한 DAY/NIGHT 토글 버튼 (null이면 자동 생성)")]
-    [SerializeField] private Button serializedThemeToggle = null;
-    [SerializeField] private Vector2 themeTogglePosition = new Vector2(-20, -20);
-    [SerializeField] private Vector2 themeToggleSize = new Vector2(120, 50);
-    [SerializeField] private float themeToggleFontSize = 15f;
+    [Header("HUD - Texts")]
+    [Tooltip("씬에 미리 배치한 SCORE 숫자 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedScoreText = null;
+    [Tooltip("씬에 미리 배치한 SCORE 라벨 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedScoreLabelText = null;
+    [Tooltip("씬에 미리 배치한 타이머 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedTimerText = null;
+    [Tooltip("씬에 미리 배치한 타이머 슬라이더 (null이면 자동 생성)")]
+    [SerializeField] private Slider serializedTimerSlider = null;
+    [Tooltip("씬에 미리 배치한 콤보 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedComboText = null;
+
+    [Header("HUD - BGM Control")]
+    [Tooltip("씬에 미리 배치한 BGM 토글 (null이면 자동 생성)")]
+    [SerializeField] private Toggle serializedBgmToggle = null;
+    [Tooltip("씬에 미리 배치한 BGM 볼륨 슬라이더 (null이면 자동 생성)")]
+    [SerializeField] private Slider serializedBgmSlider = null;
+    [Tooltip("씬에 미리 배치한 BGM 볼륨 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedBgmVolumeText = null;
 
     [Header("HUD - Buttons")]
     [Tooltip("씬에 미리 배치한 HINT 버튼 (null이면 자동 생성)")]
@@ -76,8 +89,6 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button serializedRestartButton = null;
     [Tooltip("씬에 미리 배치한 HOME 버튼 (null이면 자동 생성)")]
     [SerializeField] private Button serializedHomeButton = null;
-    [Tooltip("씬에 미리 배치한 HUD 테마 토글 버튼 (null이면 자동 생성)")]
-    [SerializeField] private Button serializedHudThemeToggle = null;
 
     [Header("Result - Buttons")]
     [Tooltip("씬에 미리 배치한 RETRY 버튼 (null이면 자동 생성)")]
@@ -127,8 +138,6 @@ public class UIManager : MonoBehaviour
     private TextMeshProUGUI _shuffleButtonText;
     private Button _hintButton;
     private Button _shuffleButton;
-    private Button _hudThemeToggleButton;
-    private TextMeshProUGUI _hudThemeToggleText;
     
     // BGM 컨트롤
     private Toggle _bgmToggle;
@@ -152,8 +161,6 @@ public class UIManager : MonoBehaviour
 
     // 메인메뉴
     private TextMeshProUGUI _menuBestScoreText;
-    private Button _themeToggleButton;
-    private TextMeshProUGUI _themeToggleText;
 
     // 랭킹
     private GameObject _leaderboardPanel;
@@ -265,9 +272,6 @@ public class UIManager : MonoBehaviour
         Debug.Log("[UIManager] About to show Menu panel...");
         ShowPanel(GameState.Menu);
 
-        // 초기 테마 적용
-        Debug.Log("[UIManager] Applying theme...");
-        ApplyTheme();
         Debug.Log("[UIManager] Initialize complete!");
     }
 
@@ -299,6 +303,8 @@ public class UIManager : MonoBehaviour
                 if (existingHud != null) DestroyImmediate(existingHud.gameObject);
                 CreateHUDPanel();
                 _hudPanel?.SetActive(true);
+                if (_scoreText != null) _scoreText.text = "1,250";
+                if (_timerText != null) _timerText.text = "1:30";
                 break;
             case "CountdownPanel":
                 var existingCd = _canvas.transform.Find("CountdownPanel");
@@ -311,12 +317,17 @@ public class UIManager : MonoBehaviour
                 if (existingRes != null) DestroyImmediate(existingRes.gameObject);
                 CreateResultPanel();
                 _resultPanel?.SetActive(true);
+                if (_resultScoreText != null) _resultScoreText.text = "1,250";
+                if (_resultComboText != null) _resultComboText.text = "Best Combo: 8";
+                if (_resultBestText != null) _resultBestText.text = "BEST: 2,500";
+                if (_resultCatFace != null) _resultCatFace.text = "=^.^=";
                 break;
             case "LeaderboardPanel":
                 var existingLb = _canvas.transform.Find("LeaderboardPanel");
                 if (existingLb != null) DestroyImmediate(existingLb.gameObject);
                 CreateLeaderboardPanel();
                 _leaderboardPanel?.SetActive(true);
+                ShowPlaceholderLeaderboard();
                 break;
         }
 
@@ -423,63 +434,70 @@ public class UIManager : MonoBehaviour
             }
         }
 
-        // HUD 요소 재참조
+        // HUD 요소 재참조: 직렬화 우선
+        _scoreText = serializedScoreText;
+        _scoreLabelText = serializedScoreLabelText;
+        _timerText = serializedTimerText;
+        _comboText = serializedComboText;
+
+        if (serializedTimerSlider != null)
+        {
+            _timerSlider = serializedTimerSlider;
+            _timerSliderFill = _timerSlider.fillRect?.GetComponent<Image>();
+        }
+
+        // 직렬화 안 된 것들은 TopBar에서 찾기
         var topBar = _hudPanel.transform.Find("TopBar");
         if (topBar != null)
         {
-            var texts = topBar.GetComponentsInChildren<TextMeshProUGUI>(true);
-            foreach (var txt in texts)
+            if (_scoreText == null || _timerText == null || _scoreLabelText == null || _comboText == null)
             {
-                // 숫자만 있는 텍스트 (0 또는 숫자) → Score
-                if (txt.name == "Text" && (txt.text == "0" || (int.TryParse(txt.text, out _) && !txt.text.Contains(":"))))
+                var texts = topBar.GetComponentsInChildren<TextMeshProUGUI>(true);
+                foreach (var txt in texts)
                 {
-                    // 좌측에 있는 숫자 텍스트만 Score로 인식 (x < 0)
-                    var rt = txt.GetComponent<RectTransform>();
-                    if (rt != null && rt.anchoredPosition.x < -100)
+                    if (_scoreText == null && txt.name == "Text" && (txt.text == "0" || (int.TryParse(txt.text, out _) && !txt.text.Contains(":"))))
                     {
-                        _scoreText = txt;
-                        // ⭐ 점수는 항상 검정색 (다크모드에서도)
-                        _scoreText.color = new Color(0.17f, 0.17f, 0.18f);
-                        Debug.Log($"[UIManager] Found _scoreText: {txt.text} at position {rt.anchoredPosition}, color set to BLACK");
+                        var rt = txt.GetComponent<RectTransform>();
+                        if (rt != null && rt.anchoredPosition.x < -100)
+                            _scoreText = txt;
+                    }
+                    else if (_timerText == null && txt.name == "Text" && txt.text.Contains(":"))
+                    {
+                        _timerText = txt;
+                    }
+                    else if (_scoreLabelText == null && txt.text.Contains("SCORE"))
+                    {
+                        _scoreLabelText = txt;
                     }
                 }
-                // 시간 형식 (2:00 등) → Timer
-                else if (txt.name == "Text" && txt.text.Contains(":"))
+
+                if (_comboText == null)
                 {
-                    _timerText = txt;
-                    // ⭐ 타이머는 항상 검정색 (다크모드에서도)
-                    _timerText.color = new Color(0.17f, 0.17f, 0.18f);
-                    Debug.Log($"[UIManager] Found _timerText: {txt.text}, color set to BLACK");
-                }
-                // SCORE 라벨
-                else if (txt.text.Contains("SCORE"))
-                {
-                    _scoreLabelText = txt;
-                    // ⭐ SCORE 라벨도 항상 검정색
-                    _scoreLabelText.color = new Color(0.17f, 0.17f, 0.18f);
-                    Debug.Log($"[UIManager] Found _scoreLabelText: {txt.text}, color set to BLACK");
+                    var texts2 = topBar.GetComponentsInChildren<TextMeshProUGUI>(true);
+                    foreach (var txt in texts2)
+                    {
+                        var rt = txt.GetComponent<RectTransform>();
+                        if (rt != null && rt.anchoredPosition.x > 200 && txt.text == "")
+                        {
+                            _comboText = txt;
+                            break;
+                        }
+                    }
                 }
             }
 
-            var slider = topBar.GetComponentInChildren<Slider>(true);
-            if (slider != null)
+            if (_timerSlider == null)
             {
-                _timerSlider = slider;
-                _timerSliderFill = slider.fillRect?.GetComponent<Image>();
-            }
-
-            // Combo 텍스트 찾기 (우측 상단)
-            foreach (var txt in texts)
-            {
-                var rt = txt.GetComponent<RectTransform>();
-                if (rt != null && rt.anchoredPosition.x > 200 && txt.text == "")
+                var slider = topBar.GetComponentInChildren<Slider>(true);
+                if (slider != null)
                 {
-                    _comboText = txt;
-                    Debug.Log($"[UIManager] Found _comboText at position {rt.anchoredPosition}");
-                    break;
+                    _timerSlider = slider;
+                    _timerSliderFill = slider.fillRect?.GetComponent<Image>();
                 }
             }
         }
+
+        Debug.Log($"[UIManager] HUD refs - Score:{_scoreText != null} Timer:{_timerText != null} Slider:{_timerSlider != null} Combo:{_comboText != null}");
 
         // 버튼 재참조 및 이벤트 재연결
         var buttons = _hudPanel.GetComponentsInChildren<Button>(true);
@@ -487,7 +505,6 @@ public class UIManager : MonoBehaviour
         bool hasHomeButton = false;
         bool hasHintButton = false;
         bool hasShuffleButton = false;
-        bool hasThemeToggle = false;
         Button hintBtnComponent = null;
         Button shuffleBtnComponent = null;
         
@@ -547,49 +564,6 @@ public class UIManager : MonoBehaviour
                     
                     // 버튼 색상 초기화 (크림색)
                     ResetButtonColor(btn, CAT_PAW_CREAM);
-                }
-                // ⭐ HUD 테마 토글 버튼 찾기 (이모지 또는 DAY/NIGHT 텍스트)
-                else if (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT")
-                {
-                    hasThemeToggle = true;
-                    _hudThemeToggleButton = btn;
-                    _hudThemeToggleText = label;
-                    
-                    // ⭐ 이모지를 텍스트로 강제 변경
-                    label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-                    
-                    // 텍스트 크기 조정
-                    label.fontSize = 15;
-                    label.color = new Color(0.2f, 0.2f, 0.2f);
-                    label.alignment = TextAlignmentOptions.Center;
-                    label.fontStyle = FontStyles.Bold;
-                    
-                    // 버튼 크기 조정
-                    var btnRt = btn.GetComponent<RectTransform>();
-                    if (btnRt != null)
-                        btnRt.sizeDelta = new Vector2(120, 50);
-                    
-                    btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(() => 
-                    { 
-                        PlayButtonSound(); 
-                        Debug.Log("[UIManager] HUD Theme toggle clicked!");
-                        ThemeManager.Instance?.ToggleTheme(); 
-                    });
-                    
-                    // 버튼 배경 투명하게
-                    var img = btn.GetComponent<Image>();
-                    if (img != null)
-                    {
-                        img.color = new Color(1f, 1f, 1f, 0f);
-                        var colors = btn.colors;
-                        colors.normalColor = new Color(1f, 1f, 1f, 0f);
-                        colors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-                        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-                        btn.colors = colors;
-                    }
-                    
-                    Debug.Log("[UIManager] ✅ HUD Theme toggle button found and reconnected!");
                 }
             }
         }
@@ -671,117 +645,44 @@ public class UIManager : MonoBehaviour
             }
         }
         
-        // ⭐ HUD 테마 토글 버튼이 없으면 생성
-        if (!hasThemeToggle)
+        // BGM 컨트롤: 직렬화 우선 → 씬 내 BGMControl → 코드 생성
+        if (serializedBgmToggle != null && serializedBgmSlider != null)
         {
-            Debug.Log("[UIManager] HUD Theme toggle button not found, creating...");
-            
-            var hudThemeBtn = new GameObject("HUDThemeToggle");
-            hudThemeBtn.transform.SetParent(_hudPanel.transform, false);
-            var hudThemeBtnRt = hudThemeBtn.AddComponent<RectTransform>();
-            hudThemeBtnRt.anchorMin = new Vector2(1, 1); // 우측 상단 앵커
-            hudThemeBtnRt.anchorMax = new Vector2(1, 1);
-            hudThemeBtnRt.pivot = new Vector2(1, 1);
-            hudThemeBtnRt.anchoredPosition = new Vector2(-20, -20); // 우측 상단에서 20px 안쪽
-            hudThemeBtnRt.sizeDelta = new Vector2(120, 50);
+            _bgmToggle = serializedBgmToggle;
+            _bgmVolumeSlider = serializedBgmSlider;
+            _bgmVolumeText = serializedBgmVolumeText;
+            SetupBGMEvents();
 
-            var hudThemeBtnImg = hudThemeBtn.AddComponent<Image>();
-            hudThemeBtnImg.color = new Color(1f, 1f, 1f, 0f); // 투명
-            hudThemeBtnImg.type = Image.Type.Sliced;
+            // 코드 생성된 BGMControl이 있으면 제거
+            var oldBgm = _hudPanel.transform.Find("BGMControl");
+            if (oldBgm != null) Destroy(oldBgm.gameObject);
 
-            var hudThemeBtnComp = hudThemeBtn.AddComponent<Button>();
-            var hudThemeBtnColors = hudThemeBtnComp.colors;
-            hudThemeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f); // 투명
-            hudThemeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-            hudThemeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-            hudThemeBtnComp.colors = hudThemeBtnColors;
-            hudThemeBtnComp.onClick.AddListener(() => 
-            { 
-                PlayButtonSound(); 
-                Debug.Log("[UIManager] HUD Theme toggle clicked!");
-                ThemeManager.Instance?.ToggleTheme(); 
-            });
-
-            var hudThemeBtnTextGo = new GameObject("Label");
-            hudThemeBtnTextGo.transform.SetParent(hudThemeBtn.transform, false);
-            var hudThemeBtnTextRt = hudThemeBtnTextGo.AddComponent<RectTransform>();
-            SetFullStretch(hudThemeBtnTextRt);
-            _hudThemeToggleText = hudThemeBtnTextGo.AddComponent<TextMeshProUGUI>();
-            _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            _hudThemeToggleText.fontSize = 15;
-            _hudThemeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
-            _hudThemeToggleText.alignment = TextAlignmentOptions.Center;
-            _hudThemeToggleText.fontStyle = FontStyles.Bold;
-
-            _hudThemeToggleButton = hudThemeBtnComp;
-            _secondaryButtons.Add(_hudThemeToggleButton);
-            
-            Debug.Log("[UIManager] ✅ HUD Theme toggle button created!");
-        }
-
-        // BGM 컨트롤 재참조 또는 생성
-        var bgmControl = _hudPanel.transform.Find("BGMControl");
-        if (bgmControl != null)
-        {
-            Debug.Log("[UIManager] BGMControl found, re-referencing...");
-            _bgmToggle = bgmControl.GetComponentInChildren<Toggle>(true);
-            if (_bgmToggle != null)
-            {
-                // 토글 이벤트 재연결
-                _bgmToggle.onValueChanged.RemoveAllListeners();
-                _bgmToggle.onValueChanged.AddListener((isOn) =>
-                {
-                    if (AudioManager.Instance != null)
-                    {
-                        if (isOn)
-                            AudioManager.Instance.PlayBGM();
-                        else
-                            AudioManager.Instance.StopBGM();
-                    }
-                });
-            }
-
-            var sliders = bgmControl.GetComponentsInChildren<Slider>(true);
-            foreach (var slider in sliders)
-            {
-                if (slider.name == "BGMVolumeSlider")
-                {
-                    _bgmVolumeSlider = slider;
-                    // 슬라이더 이벤트 재연결
-                    _bgmVolumeSlider.onValueChanged.RemoveAllListeners();
-                    _bgmVolumeSlider.onValueChanged.AddListener((value) =>
-                    {
-                        if (_bgmVolumeText != null)
-                            _bgmVolumeText.text = $"{Mathf.RoundToInt(value * 100)}%";
-                        
-                        if (AudioManager.Instance != null)
-                            AudioManager.Instance.SetBGMVolume(value);
-                    });
-                }
-            }
-
-            var bgmTexts = bgmControl.GetComponentsInChildren<TextMeshProUGUI>(true);
-            foreach (var txt in bgmTexts)
-            {
-                if (txt.text.Contains("%"))
-                    _bgmVolumeText = txt;
-            }
-            
-            // AudioManager의 현재 볼륨으로 초기화
-            if (_bgmVolumeSlider != null && AudioManager.Instance != null)
-            {
-                float currentVolume = AudioManager.Instance.GetComponent<AudioSource>()?.volume ?? 0.5f;
-                _bgmVolumeSlider.value = currentVolume;
-                if (_bgmVolumeText != null)
-                    _bgmVolumeText.text = $"{Mathf.RoundToInt(currentVolume * 100)}%";
-                Debug.Log($"[UIManager] BGM volume re-initialized to {currentVolume * 100}%");
-            }
+            Debug.Log("[UIManager] BGM Control: using serialized components (re-ref)");
         }
         else
         {
-            // BGMControl이 없으면 생성
-            Debug.LogWarning("[UIManager] BGMControl not found! Creating new BGM control...");
-            CreateBGMControl();
+            var bgmControl = _hudPanel.transform.Find("BGMControl");
+            if (bgmControl != null)
+            {
+                Debug.Log("[UIManager] BGMControl found, re-referencing...");
+                _bgmToggle = bgmControl.GetComponentInChildren<Toggle>(true);
+                _bgmVolumeSlider = bgmControl.GetComponentInChildren<Slider>(true);
+
+                var bgmTexts = bgmControl.GetComponentsInChildren<TextMeshProUGUI>(true);
+                foreach (var txt in bgmTexts)
+                {
+                    if (txt.text.Contains("%"))
+                        _bgmVolumeText = txt;
+                }
+
+                if (_bgmToggle != null && _bgmVolumeSlider != null)
+                    SetupBGMEvents();
+            }
+            else
+            {
+                Debug.LogWarning("[UIManager] BGMControl not found! Creating...");
+                CreateBGMControl();
+            }
         }
 
         // 카운트다운 요소 (GameObject 이름으로 안전하게 찾기)
@@ -925,8 +826,6 @@ public class UIManager : MonoBehaviour
                 _menuBestScoreText = txt;
                 txt.fontSize = bestScoreFontSize;
             }
-            else if (txt.text == "☀" || txt.text == "☾")
-                _themeToggleText = txt;
             else if (txt.text.Contains("PAW 10"))
             {
                 _titleText = txt;
@@ -979,28 +878,13 @@ public class UIManager : MonoBehaviour
             Debug.Log("[UIManager] RANKING button (serialized) reconnected!");
         }
 
-        if (serializedThemeToggle != null)
-        {
-            _themeToggleButton = serializedThemeToggle;
-            _themeToggleText = serializedThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
-            if (_themeToggleText != null)
-            {
-                _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-                _themeToggleText.fontSize = themeToggleFontSize;
-            }
-            serializedThemeToggle.onClick.RemoveAllListeners();
-            serializedThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-            _secondaryButtons.Add(_themeToggleButton);
-            Debug.Log("[UIManager] Theme toggle (serialized) reconnected!");
-        }
-
         // 메인메뉴 버튼 재연결 (직렬화 안 된 것들)
         var menuButtons = _mainMenuPanel.GetComponentsInChildren<Button>(true);
         Debug.Log($"[UIManager] Found {menuButtons.Length} buttons in MainMenu");
         
         foreach (var btn in menuButtons)
         {
-            if (btn == serializedPlayButton || btn == serializedRankingButton || btn == serializedThemeToggle)
+            if (btn == serializedPlayButton || btn == serializedRankingButton)
                 continue;
 
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
@@ -1046,89 +930,9 @@ public class UIManager : MonoBehaviour
                     
                     label.fontSize = menuButtonFontSize;
                 }
-                else if (_themeToggleButton == null && (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT"))
-                {
-                    _themeToggleButton = btn;
-                    _themeToggleText = label;
-                    
-                    label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-                    
-                    label.fontSize = themeToggleFontSize;
-                    label.color = new Color(0.2f, 0.2f, 0.2f);
-                    label.alignment = TextAlignmentOptions.Center;
-                    label.fontStyle = FontStyles.Bold;
-                    
-                    var btnRt = btn.GetComponent<RectTransform>();
-                    if (btnRt != null)
-                        btnRt.sizeDelta = themeToggleSize;
-                    
-                    btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(() =>
-                    {
-                        PlayButtonSound();
-                        Debug.Log("[UIManager] Main menu theme toggle clicked!");
-                        ThemeManager.Instance?.ToggleTheme();
-                    });
-                    
-                    // 버튼 배경 투명하게
-                    var img = btn.GetComponent<Image>();
-                    if (img != null)
-                    {
-                        img.color = new Color(1f, 1f, 1f, 0f);
-                        var colors = btn.colors;
-                        colors.normalColor = new Color(1f, 1f, 1f, 0f);
-                        colors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-                        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-                        btn.colors = colors;
-                    }
-                    
-                    Debug.Log("[UIManager] ✅ Main menu theme toggle button reconnected!");
-                }
             }
         }
         
-        // ⭐ 테마 토글 버튼이 없으면 생성 (메인 메뉴)
-        if (_themeToggleButton == null)
-        {
-            Debug.Log("[UIManager] Theme toggle button not found in MainMenu, creating...");
-            
-            var themeBtn = new GameObject("ThemeToggle");
-            themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
-            var themeBtnRt = themeBtn.AddComponent<RectTransform>();
-            themeBtnRt.anchorMin = new Vector2(1, 1);
-            themeBtnRt.anchorMax = new Vector2(1, 1);
-            themeBtnRt.pivot = new Vector2(1, 1);
-            themeBtnRt.anchoredPosition = themeTogglePosition;
-            themeBtnRt.sizeDelta = themeToggleSize;
-
-            var themeBtnImg = themeBtn.AddComponent<Image>();
-            themeBtnImg.color = new Color(1f, 1f, 1f, 0f);
-            themeBtnImg.type = Image.Type.Sliced;
-
-            var themeBtnComp = themeBtn.AddComponent<Button>();
-            var themeBtnColors = themeBtnComp.colors;
-            themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f);
-            themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-            themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-            themeBtnComp.colors = themeBtnColors;
-            themeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-
-            var themeBtnTextGo = new GameObject("Label");
-            themeBtnTextGo.transform.SetParent(themeBtn.transform, false);
-            var themeBtnTextRt = themeBtnTextGo.AddComponent<RectTransform>();
-            SetFullStretch(themeBtnTextRt);
-            _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
-            _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            _themeToggleText.fontSize = themeToggleFontSize;
-            _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
-            _themeToggleText.alignment = TextAlignmentOptions.Center;
-            _themeToggleText.fontStyle = FontStyles.Bold;
-
-            _themeToggleButton = themeBtnComp;
-            _secondaryButtons.Add(_themeToggleButton);
-            
-            Debug.Log("[UIManager] ✅ Theme toggle button created in MainMenu!");
-        }
         
         // PLAY 버튼이 없으면 생성
         Debug.Log($"[UIManager] hasPlayButton = {hasPlayButton}, _mainMenuPanel = {_mainMenuPanel != null}");
@@ -1217,29 +1021,39 @@ public class UIManager : MonoBehaviour
             SetupSerializedButton(serializedHomeButton, CAT_PAW_CREAM, () => { PlayButtonSound(); GameManager.Instance?.ReturnToMenu(); });
             _secondaryButtons.Add(serializedHomeButton);
         }
-        if (serializedHudThemeToggle != null)
-        {
-            _hudThemeToggleButton = serializedHudThemeToggle;
-            _hudThemeToggleText = serializedHudThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
-            if (_hudThemeToggleText != null)
-                _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            serializedHudThemeToggle.onClick.RemoveAllListeners();
-            serializedHudThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-            _secondaryButtons.Add(_hudThemeToggleButton);
-        }
-
-        // HUD 비직렬화 버튼 재연결
+        // HUD 비직렬화 버튼: 직렬화 버튼이 있으면 코드 생성 버튼 제거, 없으면 재연결
         var hudButtons2 = _hudPanel.GetComponentsInChildren<Button>(true);
         foreach (var btn in hudButtons2)
         {
             if (btn == serializedHintButton || btn == serializedShuffleButton ||
-                btn == serializedRestartButton || btn == serializedHomeButton ||
-                btn == serializedHudThemeToggle)
+                btn == serializedRestartButton || btn == serializedHomeButton)
                 continue;
 
             var label = btn.GetComponentInChildren<TextMeshProUGUI>();
             if (label != null)
             {
+                // 직렬화 버튼이 할당되어 있으면 코드 생성 버튼 제거
+                if (serializedHintButton != null && label.text.Contains("HINT"))
+                {
+                    Destroy(btn.gameObject);
+                    continue;
+                }
+                if (serializedShuffleButton != null && label.text.Contains("SHUFFLE"))
+                {
+                    Destroy(btn.gameObject);
+                    continue;
+                }
+                if (serializedRestartButton != null && label.text == "RESTART")
+                {
+                    Destroy(btn.gameObject);
+                    continue;
+                }
+                if (serializedHomeButton != null && label.text == "HOME")
+                {
+                    Destroy(btn.gameObject);
+                    continue;
+                }
+                // 직렬화 버튼이 없으면 코드 생성 버튼 재연결
                 if (serializedHintButton == null && label.text.Contains("HINT"))
                 {
                     _hintButton = btn;
@@ -1257,39 +1071,6 @@ public class UIManager : MonoBehaviour
                     _shuffleButtonText = label;
                     btn.onClick.RemoveAllListeners();
                     btn.onClick.AddListener(() => { GameManager.Instance?.UseShuffle(); });
-                }
-                else if (_hudThemeToggleButton == null && (label.text == "☀" || label.text == "☾" || label.text == "DAY" || label.text == "NIGHT"))
-                {
-                    _hudThemeToggleButton = btn;
-                    _hudThemeToggleText = label;
-                    
-                    label.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-                    label.fontSize = 15;
-                    label.color = new Color(0.2f, 0.2f, 0.2f);
-                    label.alignment = TextAlignmentOptions.Center;
-                    label.fontStyle = FontStyles.Bold;
-                    
-                    var btnRt = btn.GetComponent<RectTransform>();
-                    if (btnRt != null)
-                        btnRt.sizeDelta = new Vector2(120, 50);
-                    
-                    btn.onClick.RemoveAllListeners();
-                    btn.onClick.AddListener(() => 
-                    { 
-                        PlayButtonSound(); 
-                        ThemeManager.Instance?.ToggleTheme(); 
-                    });
-                    
-                    var img = btn.GetComponent<Image>();
-                    if (img != null)
-                    {
-                        img.color = new Color(1f, 1f, 1f, 0f);
-                        var colors = btn.colors;
-                        colors.normalColor = new Color(1f, 1f, 1f, 0f);
-                        colors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-                        colors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-                        btn.colors = colors;
-                    }
                 }
             }
         }
@@ -1374,10 +1155,6 @@ public class UIManager : MonoBehaviour
             Debug.LogWarning("[UIManager] ScoreManager.Instance is null in Start()!");
         }
 
-        if (ThemeManager.Instance != null)
-        {
-            ThemeManager.Instance.OnThemeChanged.AddListener(OnThemeChanged);
-        }
 
         Debug.Log($"[UIManager] _scoreText is null: {_scoreText == null}");
         
@@ -1433,155 +1210,6 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    // ─── 테마 전환 ───
-
-    private void OnThemeChanged(ThemeManager.Theme theme)
-    {
-        ApplyTheme();
-    }
-
-    private void ApplyTheme()
-    {
-        if (ThemeManager.Instance == null)
-        {
-            Debug.LogWarning("[UIManager] ThemeManager.Instance is null! Cannot apply theme.");
-            return;
-        }
-
-        bool isLight = ThemeManager.Instance.IsLightTheme();
-        Debug.Log($"[UIManager] Applying theme: {(isLight ? "Light" : "Dark")}");
-
-        // 패널 배경
-        foreach (var img in _panelBackgrounds)
-            if (img != null)
-                img.color = ThemeManager.Instance.GetColor("UIPanel");
-
-        // 바 배경
-        foreach (var img in _barBackgrounds)
-            if (img != null)
-                img.color = ThemeManager.Instance.GetColor("HUDBar");
-
-        // ⭐ Score, Timer, "SCORE" 라벨은 항상 검정색 (최우선 처리!)
-        Color scoreTimerColor = new Color(0.17f, 0.17f, 0.18f); // 차콜 (항상 검정)
-        
-        if (_scoreText != null)
-        {
-            _scoreText.color = scoreTimerColor;
-            Debug.Log($"[UIManager] ✅ Set _scoreText color to black: {_scoreText.color}");
-        }
-        
-        if (_timerText != null)
-        {
-            _timerText.color = scoreTimerColor;
-            Debug.Log($"[UIManager] ✅ Set _timerText color to black: {_timerText.color}");
-        }
-        
-        if (_scoreLabelText != null)
-        {
-            _scoreLabelText.color = scoreTimerColor;
-            Debug.Log($"[UIManager] ✅ Set _scoreLabelText color to black: {_scoreLabelText.color}");
-        }
-        
-        // 텍스트 (Score/Timer/ScoreLabel 완전 제외)
-        foreach (var txt in _primaryTexts)
-        {
-            if (txt != null && txt != _scoreText && txt != _timerText && txt != _scoreLabelText)
-                txt.color = ThemeManager.Instance.GetColor("TextPrimary");
-        }
-
-        foreach (var txt in _secondaryTexts)
-        {
-            if (txt != null && txt != _scoreText && txt != _timerText && txt != _scoreLabelText)
-                txt.color = ThemeManager.Instance.GetColor("TextSecondary");
-        }
-
-        // 버튼
-        ApplyButtonTheme(_primaryButtons, "BtnPrimary");
-        ApplyButtonTheme(_secondaryButtons, "BtnSecondary");
-        ApplyButtonTheme(_successButtons, "BtnSuccess");
-        
-        // PLAY/RANKING 버튼은 고정 색상 유지 (테마 영향 안 받음)
-        if (serializedPlayButton != null)
-            ResetButtonColor(serializedPlayButton, playButtonColor);
-        if (serializedRankingButton != null)
-            ResetButtonColor(serializedRankingButton, rankingButtonColor);
-
-        var menuButtons = _mainMenuPanel?.GetComponentsInChildren<Button>(true);
-        if (menuButtons != null)
-        {
-            foreach (var btn in menuButtons)
-            {
-                if (btn == serializedPlayButton || btn == serializedRankingButton) continue;
-                var label = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (label != null)
-                {
-                    if (label.text == "PLAY")
-                        ResetButtonColor(btn, playButtonColor);
-                    else if (label.text == "RANKING")
-                        ResetButtonColor(btn, rankingButtonColor);
-                }
-            }
-        }
-        
-        // 플레이 화면 버튼들도 고정 색상 유지
-        if (serializedHintButton != null) ResetButtonColor(serializedHintButton, LIGHT_SKY);
-        if (serializedShuffleButton != null) ResetButtonColor(serializedShuffleButton, LIGHT_PINK);
-        if (serializedRestartButton != null) ResetButtonColor(serializedRestartButton, CAT_NOSE_PINK);
-        if (serializedHomeButton != null) ResetButtonColor(serializedHomeButton, CAT_PAW_CREAM);
-
-        var hudButtons = _hudPanel?.GetComponentsInChildren<Button>(true);
-        if (hudButtons != null)
-        {
-            foreach (var btn in hudButtons)
-            {
-                if (btn == serializedHintButton || btn == serializedShuffleButton ||
-                    btn == serializedRestartButton || btn == serializedHomeButton)
-                    continue;
-
-                var label = btn.GetComponentInChildren<TextMeshProUGUI>();
-                if (label != null)
-                {
-                    if (label.text.Contains("HINT"))
-                        ResetButtonColor(btn, LIGHT_SKY);
-                    else if (label.text.Contains("SHUFFLE"))
-                        ResetButtonColor(btn, LIGHT_PINK);
-                    else if (label.text == "RESTART")
-                        ResetButtonColor(btn, CAT_NOSE_PINK);
-                    else if (label.text == "HOME")
-                        ResetButtonColor(btn, CAT_PAW_CREAM);
-                }
-            }
-        }
-
-        // 토글 버튼 텍스트 업데이트 (메인 메뉴 + HUD)
-        if (_themeToggleText != null)
-            _themeToggleText.text = isLight ? "DAY" : "NIGHT";
-        
-        if (_hudThemeToggleText != null)
-            _hudThemeToggleText.text = isLight ? "DAY" : "NIGHT";
-
-        // 카메라 배경 색상 변경
-        if (Camera.main != null)
-            Camera.main.backgroundColor = ThemeManager.Instance.GetColor("CameraBG");
-    }
-
-    private void ApplyButtonTheme(List<Button> buttons, string colorName)
-    {
-        Color btnColor = ThemeManager.Instance.GetColor(colorName);
-        foreach (var btn in buttons)
-        {
-            if (btn == null) continue;
-            var img = btn.GetComponent<Image>();
-            if (img != null) img.color = btnColor;
-
-            var colors = btn.colors;
-            colors.normalColor = btnColor;
-            colors.highlightedColor = Color.Lerp(btnColor, Color.white, 0.2f);
-            colors.pressedColor = Color.Lerp(btnColor, Color.black, 0.2f);
-            colors.disabledColor = Color.Lerp(btnColor, Color.gray, 0.5f);
-            btn.colors = colors;
-        }
-    }
 
     // ─── 패널 전환 ───
 
@@ -1707,57 +1335,7 @@ public class UIManager : MonoBehaviour
         _menuBestScoreText = CreateTextElement(_mainMenuPanel.transform, "Best: 0",
             bestScoreFontSize, CAT_EYE_GOLD, bestScorePosition, new Vector2(400, 50), isPrimary: false);
 
-        // 테마 토글 버튼
-        if (serializedThemeToggle != null)
-        {
-            _themeToggleButton = serializedThemeToggle;
-            _themeToggleText = serializedThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
-            if (_themeToggleText != null)
-            {
-                _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-                _themeToggleText.fontSize = themeToggleFontSize;
-            }
-            serializedThemeToggle.onClick.RemoveAllListeners();
-            serializedThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-            _secondaryButtons.Add(_themeToggleButton);
-        }
-        else
-        {
-            var themeBtn = new GameObject("ThemeToggle");
-            themeBtn.transform.SetParent(_mainMenuPanel.transform, false);
-            var themeBtnRt = themeBtn.AddComponent<RectTransform>();
-            themeBtnRt.anchorMin = new Vector2(1, 1);
-            themeBtnRt.anchorMax = new Vector2(1, 1);
-            themeBtnRt.pivot = new Vector2(1, 1);
-            themeBtnRt.anchoredPosition = themeTogglePosition;
-            themeBtnRt.sizeDelta = themeToggleSize;
-
-            var themeBtnImg = themeBtn.AddComponent<Image>();
-            themeBtnImg.color = new Color(1f, 1f, 1f, 0f);
-            themeBtnImg.type = Image.Type.Sliced;
-
-            var themeBtnComp = themeBtn.AddComponent<Button>();
-            var themeBtnColors = themeBtnComp.colors;
-            themeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f);
-            themeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-            themeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-            themeBtnComp.colors = themeBtnColors;
-            themeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-
-            var themeBtnTextGo = new GameObject("Label");
-            themeBtnTextGo.transform.SetParent(themeBtn.transform, false);
-            var themeBtnTextRt = themeBtnTextGo.AddComponent<RectTransform>();
-            SetFullStretch(themeBtnTextRt);
-            _themeToggleText = themeBtnTextGo.AddComponent<TextMeshProUGUI>();
-            _themeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            _themeToggleText.fontSize = themeToggleFontSize;
-            _themeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
-            _themeToggleText.alignment = TextAlignmentOptions.Center;
-            _themeToggleText.fontStyle = FontStyles.Bold;
-
-            _themeToggleButton = themeBtnComp;
-            _secondaryButtons.Add(_themeToggleButton);
-        }
+        // 다크모드 토글 제거됨
     }
 
     private void UpdateMenuBestScore()
@@ -1784,77 +1362,106 @@ public class UIManager : MonoBehaviour
         topRt.anchoredPosition = Vector2.zero;
         _barBackgrounds.Add(topBar.GetComponent<Image>());
 
-        // 점수 (좌측)
-        // ⭐ 처음부터 검정색 (다크모드에서도 검정)
-        _scoreText = CreateTextElement(topBar.transform, "0",
-            36, new Color(0.17f, 0.17f, 0.18f), new Vector2(-300, -10), new Vector2(200, 60), isPrimary: true);
-        _scoreText.alignment = TextAlignmentOptions.Left;
-        _scoreText.fontStyle = FontStyles.Bold;
+        // 점수 (좌측) - 직렬화 우선
+        if (serializedScoreText != null)
+        {
+            _scoreText = serializedScoreText;
+        }
+        else
+        {
+            _scoreText = CreateTextElement(topBar.transform, "0",
+                36, new Color(0.17f, 0.17f, 0.18f), new Vector2(-300, -10), new Vector2(200, 60), isPrimary: true);
+            _scoreText.alignment = TextAlignmentOptions.Left;
+            _scoreText.fontStyle = FontStyles.Bold;
+        }
 
-        // ⭐ SCORE 라벨도 처음부터 검정색 (다크모드에서도 검정)
-        _scoreLabelText = CreateTextElement(topBar.transform, "SCORE",
-            18, new Color(0.17f, 0.17f, 0.18f), new Vector2(-300, -42), new Vector2(200, 30), isPrimary: false);
-        _scoreLabelText.alignment = TextAlignmentOptions.Left;
+        // SCORE 라벨 - 직렬화 우선
+        if (serializedScoreLabelText != null)
+        {
+            _scoreLabelText = serializedScoreLabelText;
+        }
+        else
+        {
+            _scoreLabelText = CreateTextElement(topBar.transform, "SCORE",
+                18, new Color(0.17f, 0.17f, 0.18f), new Vector2(-300, -42), new Vector2(200, 30), isPrimary: false);
+            _scoreLabelText.alignment = TextAlignmentOptions.Left;
+        }
 
-        // 타이머 (중앙) - 숫자 + 슬라이더
-        // ⭐ 처음부터 검정색 (다크모드에서도 검정)
-        _timerText = CreateTextElement(topBar.transform, "2:00",
-            38, new Color(0.17f, 0.17f, 0.18f), new Vector2(0, -8), new Vector2(200, 50), isPrimary: true);
-        _timerText.fontStyle = FontStyles.Bold;
-        _timerText.alignment = TextAlignmentOptions.Center;
+        // 타이머 (중앙) - 직렬화 우선
+        if (serializedTimerText != null)
+        {
+            _timerText = serializedTimerText;
+        }
+        else
+        {
+            _timerText = CreateTextElement(topBar.transform, "2:00",
+                38, new Color(0.17f, 0.17f, 0.18f), new Vector2(0, -8), new Vector2(200, 50), isPrimary: true);
+            _timerText.fontStyle = FontStyles.Bold;
+            _timerText.alignment = TextAlignmentOptions.Center;
+        }
 
-        // 타이머 슬라이더 (원작 스타일)
-        var sliderGo = new GameObject("TimerSlider");
-        sliderGo.transform.SetParent(topBar.transform, false);
-        var sliderRt = sliderGo.AddComponent<RectTransform>();
-        sliderRt.anchoredPosition = new Vector2(0, -55);
-        sliderRt.sizeDelta = new Vector2(180, 12);
+        // 타이머 슬라이더 - 직렬화 우선
+        if (serializedTimerSlider != null)
+        {
+            _timerSlider = serializedTimerSlider;
+            _timerSliderFill = _timerSlider.fillRect?.GetComponent<Image>();
+        }
+        else
+        {
+            var sliderGo = new GameObject("TimerSlider");
+            sliderGo.transform.SetParent(topBar.transform, false);
+            var sliderRt = sliderGo.AddComponent<RectTransform>();
+            sliderRt.anchoredPosition = new Vector2(0, -55);
+            sliderRt.sizeDelta = new Vector2(180, 12);
 
-        _timerSlider = sliderGo.AddComponent<Slider>();
-        _timerSlider.minValue = 0f;
-        _timerSlider.maxValue = 1f;
-        _timerSlider.value = 1f;
-        _timerSlider.interactable = false;
+            _timerSlider = sliderGo.AddComponent<Slider>();
+            _timerSlider.minValue = 0f;
+            _timerSlider.maxValue = 1f;
+            _timerSlider.value = 1f;
+            _timerSlider.interactable = false;
 
-        // 슬라이더 배경
-        var bgGo = new GameObject("Background");
-        bgGo.transform.SetParent(sliderGo.transform, false);
-        var bgRt = bgGo.AddComponent<RectTransform>();
-        SetFullStretch(bgRt);
-        var bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.3f);
+            var bgGo = new GameObject("Background");
+            bgGo.transform.SetParent(sliderGo.transform, false);
+            var bgRt = bgGo.AddComponent<RectTransform>();
+            SetFullStretch(bgRt);
+            bgGo.AddComponent<Image>();
 
-        // 슬라이더 Fill Area
-        var fillAreaGo = new GameObject("Fill Area");
-        fillAreaGo.transform.SetParent(sliderGo.transform, false);
-        var fillAreaRt = fillAreaGo.AddComponent<RectTransform>();
-        fillAreaRt.anchorMin = Vector2.zero;
-        fillAreaRt.anchorMax = Vector2.one;
-        fillAreaRt.sizeDelta = new Vector2(-4, -4);
-        fillAreaRt.anchoredPosition = Vector2.zero;
+            var fillAreaGo = new GameObject("Fill Area");
+            fillAreaGo.transform.SetParent(sliderGo.transform, false);
+            var fillAreaRt = fillAreaGo.AddComponent<RectTransform>();
+            fillAreaRt.anchorMin = Vector2.zero;
+            fillAreaRt.anchorMax = Vector2.one;
+            fillAreaRt.sizeDelta = new Vector2(-4, -4);
+            fillAreaRt.anchoredPosition = Vector2.zero;
 
-        // 슬라이더 Fill
-        var fillGo = new GameObject("Fill");
-        fillGo.transform.SetParent(fillAreaGo.transform, false);
-        var fillRt = fillGo.AddComponent<RectTransform>();
-        fillRt.anchorMin = Vector2.zero;
-        fillRt.anchorMax = Vector2.one;
-        fillRt.sizeDelta = Vector2.zero;
-        fillRt.anchoredPosition = Vector2.zero;
-        _timerSliderFill = fillGo.AddComponent<Image>();
-        _timerSliderFill.color = new Color(0.4f, 0.8f, 0.5f); // 초록색 (시작)
+            var fillGo = new GameObject("Fill");
+            fillGo.transform.SetParent(fillAreaGo.transform, false);
+            var fillRt = fillGo.AddComponent<RectTransform>();
+            fillRt.anchorMin = Vector2.zero;
+            fillRt.anchorMax = Vector2.one;
+            fillRt.sizeDelta = Vector2.zero;
+            fillRt.anchoredPosition = Vector2.zero;
+            _timerSliderFill = fillGo.AddComponent<Image>();
 
-        _timerSlider.fillRect = fillRt;
-        _timerSlider.targetGraphic = _timerSliderFill;
+            _timerSlider.fillRect = fillRt;
+            _timerSlider.targetGraphic = _timerSliderFill;
 
-        var timerLabel = CreateTextElement(topBar.transform, "TIME",
-            16, CAT_EYE_GOLD, new Vector2(0, -72), new Vector2(200, 25), isPrimary: false);
-        timerLabel.alignment = TextAlignmentOptions.Center;
+            var timerLabel = CreateTextElement(topBar.transform, "TIME",
+                16, CAT_EYE_GOLD, new Vector2(0, -72), new Vector2(200, 25), isPrimary: false);
+            timerLabel.alignment = TextAlignmentOptions.Center;
+        }
 
-        // 콤보 (우측)
-        _comboText = CreateTextElement(topBar.transform, "",
-            32, CAT_EYE_GOLD, new Vector2(300, -20), new Vector2(250, 60), isPrimary: false);
-        _comboText.alignment = TextAlignmentOptions.Right;
+        // 콤보 (우측) - 직렬화 우선
+        if (serializedComboText != null)
+        {
+            _comboText = serializedComboText;
+        }
+        else
+        {
+            _comboText = CreateTextElement(topBar.transform, "",
+                32, CAT_EYE_GOLD, new Vector2(300, -20), new Vector2(250, 60), isPrimary: false);
+            _comboText.alignment = TextAlignmentOptions.Right;
+        }
 
         // 하단 버튼 바
         var bottomBar = CreatePanel("BottomBar", Color.clear, false, _hudPanel.transform);
@@ -1954,57 +1561,20 @@ public class UIManager : MonoBehaviour
             _secondaryButtons.Add(homeBtnGo.GetComponent<Button>());
         }
 
-        // HUD 테마 토글 버튼
-        if (serializedHudThemeToggle != null)
+        // 다크모드 HUD 토글 제거됨
+
+        // BGM 컨트롤: 직렬화 할당되어 있으면 이벤트만 연결, 없으면 코드 생성
+        if (serializedBgmToggle != null && serializedBgmSlider != null)
         {
-            _hudThemeToggleButton = serializedHudThemeToggle;
-            _hudThemeToggleText = serializedHudThemeToggle.GetComponentInChildren<TextMeshProUGUI>();
-            if (_hudThemeToggleText != null)
-                _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            serializedHudThemeToggle.onClick.RemoveAllListeners();
-            serializedHudThemeToggle.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-            _secondaryButtons.Add(_hudThemeToggleButton);
+            _bgmToggle = serializedBgmToggle;
+            _bgmVolumeSlider = serializedBgmSlider;
+            _bgmVolumeText = serializedBgmVolumeText;
+            SetupBGMEvents();
         }
         else
         {
-            var hudThemeBtn = new GameObject("HUDThemeToggle");
-            hudThemeBtn.transform.SetParent(_hudPanel.transform, false);
-            var hudThemeBtnRt = hudThemeBtn.AddComponent<RectTransform>();
-            hudThemeBtnRt.anchorMin = new Vector2(1, 1);
-            hudThemeBtnRt.anchorMax = new Vector2(1, 1);
-            hudThemeBtnRt.pivot = new Vector2(1, 1);
-            hudThemeBtnRt.anchoredPosition = new Vector2(-20, -20);
-            hudThemeBtnRt.sizeDelta = new Vector2(120, 50);
-
-            var hudThemeBtnImg = hudThemeBtn.AddComponent<Image>();
-            hudThemeBtnImg.color = new Color(1f, 1f, 1f, 0f);
-            hudThemeBtnImg.type = Image.Type.Sliced;
-
-            var hudThemeBtnComp = hudThemeBtn.AddComponent<Button>();
-            var hudThemeBtnColors = hudThemeBtnComp.colors;
-            hudThemeBtnColors.normalColor = new Color(1f, 1f, 1f, 0f);
-            hudThemeBtnColors.highlightedColor = new Color(0.9f, 0.9f, 0.9f, 0.3f);
-            hudThemeBtnColors.pressedColor = new Color(0.8f, 0.8f, 0.8f, 0.5f);
-            hudThemeBtnComp.colors = hudThemeBtnColors;
-            hudThemeBtnComp.onClick.AddListener(() => { PlayButtonSound(); ThemeManager.Instance?.ToggleTheme(); });
-
-            var hudThemeBtnTextGo = new GameObject("Label");
-            hudThemeBtnTextGo.transform.SetParent(hudThemeBtn.transform, false);
-            var hudThemeBtnTextRt = hudThemeBtnTextGo.AddComponent<RectTransform>();
-            SetFullStretch(hudThemeBtnTextRt);
-            _hudThemeToggleText = hudThemeBtnTextGo.AddComponent<TextMeshProUGUI>();
-            _hudThemeToggleText.text = ThemeManager.Instance != null && ThemeManager.Instance.IsLightTheme() ? "DAY" : "NIGHT";
-            _hudThemeToggleText.fontSize = 15;
-            _hudThemeToggleText.color = new Color(0.2f, 0.2f, 0.2f);
-            _hudThemeToggleText.alignment = TextAlignmentOptions.Center;
-            _hudThemeToggleText.fontStyle = FontStyles.Bold;
-
-            _hudThemeToggleButton = hudThemeBtnComp;
-            _secondaryButtons.Add(_hudThemeToggleButton);
+            CreateBGMControl();
         }
-
-        // BGM 컨트롤 생성
-        CreateBGMControl();
 
         _hudPanel.SetActive(false);
     }
@@ -2017,13 +1587,25 @@ public class UIManager : MonoBehaviour
             return;
         }
 
+        // 직렬화 컴포넌트가 모두 있으면 이벤트만 연결
+        if (serializedBgmToggle != null && serializedBgmSlider != null)
+        {
+            _bgmToggle = serializedBgmToggle;
+            _bgmVolumeSlider = serializedBgmSlider;
+            _bgmVolumeText = serializedBgmVolumeText;
+
+            SetupBGMEvents();
+            Debug.Log("[UIManager] BGM Control: using serialized components");
+            return;
+        }
+
         // BGM 컨트롤 패널 (좌측 하단)
         var bgmPanel = CreatePanel("BGMControl", Color.clear, false, _hudPanel.transform);
         var bgmPanelRt = bgmPanel.GetComponent<RectTransform>();
         bgmPanelRt.anchorMin = new Vector2(0, 0);
         bgmPanelRt.anchorMax = new Vector2(0, 0);
         bgmPanelRt.pivot = new Vector2(0, 0);
-        bgmPanelRt.anchoredPosition = new Vector2(20, 100); // 버튼 위쪽
+        bgmPanelRt.anchoredPosition = new Vector2(20, 100);
         bgmPanelRt.sizeDelta = new Vector2(200, 80);
 
         // BGM 토글
@@ -2034,9 +1616,8 @@ public class UIManager : MonoBehaviour
         toggleRt.sizeDelta = new Vector2(180, 25);
 
         _bgmToggle = toggleGo.AddComponent<Toggle>();
-        _bgmToggle.isOn = true; // 기본값: BGM ON
+        _bgmToggle.isOn = true;
 
-        // 토글 배경
         var toggleBgGo = new GameObject("Background");
         toggleBgGo.transform.SetParent(toggleGo.transform, false);
         var toggleBgRt = toggleBgGo.AddComponent<RectTransform>();
@@ -2044,7 +1625,6 @@ public class UIManager : MonoBehaviour
         var toggleBgImg = toggleBgGo.AddComponent<Image>();
         toggleBgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.5f);
 
-        // 체크마크
         var checkmarkGo = new GameObject("Checkmark");
         checkmarkGo.transform.SetParent(toggleBgGo.transform, false);
         var checkmarkRt = checkmarkGo.AddComponent<RectTransform>();
@@ -2059,7 +1639,6 @@ public class UIManager : MonoBehaviour
         _bgmToggle.graphic = checkmarkImg;
         _bgmToggle.targetGraphic = toggleBgImg;
 
-        // 토글 라벨
         var toggleLabelGo = new GameObject("Label");
         toggleLabelGo.transform.SetParent(toggleGo.transform, false);
         var toggleLabelRt = toggleLabelGo.AddComponent<RectTransform>();
@@ -2075,18 +1654,6 @@ public class UIManager : MonoBehaviour
         toggleLabel.alignment = TextAlignmentOptions.Left;
         _primaryTexts.Add(toggleLabel);
 
-        // 토글 이벤트
-        _bgmToggle.onValueChanged.AddListener((isOn) =>
-        {
-            if (AudioManager.Instance != null)
-            {
-                if (isOn)
-                    AudioManager.Instance.PlayBGM();
-                else
-                    AudioManager.Instance.StopBGM();
-            }
-        });
-
         // BGM 볼륨 슬라이더
         var volumeSliderGo = new GameObject("BGMVolumeSlider");
         volumeSliderGo.transform.SetParent(bgmPanel.transform, false);
@@ -2097,10 +1664,9 @@ public class UIManager : MonoBehaviour
         _bgmVolumeSlider = volumeSliderGo.AddComponent<Slider>();
         _bgmVolumeSlider.minValue = 0f;
         _bgmVolumeSlider.maxValue = 1f;
-        _bgmVolumeSlider.value = 0.5f; // 기본값
+        _bgmVolumeSlider.value = 0.5f;
         _bgmVolumeSlider.interactable = true;
 
-        // 슬라이더 배경
         var volBgGo = new GameObject("Background");
         volBgGo.transform.SetParent(volumeSliderGo.transform, false);
         var volBgRt = volBgGo.AddComponent<RectTransform>();
@@ -2108,7 +1674,6 @@ public class UIManager : MonoBehaviour
         var volBgImg = volBgGo.AddComponent<Image>();
         volBgImg.color = new Color(0.2f, 0.2f, 0.2f, 0.5f);
 
-        // 슬라이더 Fill Area
         var volFillAreaGo = new GameObject("Fill Area");
         volFillAreaGo.transform.SetParent(volumeSliderGo.transform, false);
         var volFillAreaRt = volFillAreaGo.AddComponent<RectTransform>();
@@ -2117,7 +1682,6 @@ public class UIManager : MonoBehaviour
         volFillAreaRt.sizeDelta = new Vector2(-4, -4);
         volFillAreaRt.anchoredPosition = Vector2.zero;
 
-        // 슬라이더 Fill
         var volFillGo = new GameObject("Fill");
         volFillGo.transform.SetParent(volFillAreaGo.transform, false);
         var volFillRt = volFillGo.AddComponent<RectTransform>();
@@ -2131,7 +1695,6 @@ public class UIManager : MonoBehaviour
         _bgmVolumeSlider.fillRect = volFillRt;
         _bgmVolumeSlider.targetGraphic = volFillImg;
 
-        // 슬라이더 Handle
         var handleAreaGo = new GameObject("Handle Slide Area");
         handleAreaGo.transform.SetParent(volumeSliderGo.transform, false);
         var handleAreaRt = handleAreaGo.AddComponent<RectTransform>();
@@ -2146,7 +1709,6 @@ public class UIManager : MonoBehaviour
 
         _bgmVolumeSlider.handleRect = handleRt;
 
-        // 볼륨 텍스트
         var volumeTextGo = new GameObject("VolumeText");
         volumeTextGo.transform.SetParent(bgmPanel.transform, false);
         var volumeTextRt = volumeTextGo.AddComponent<RectTransform>();
@@ -2157,7 +1719,25 @@ public class UIManager : MonoBehaviour
         _bgmVolumeText.alignment = TextAlignmentOptions.Left;
         _primaryTexts.Add(_bgmVolumeText);
 
-        // 슬라이더 이벤트
+        SetupBGMEvents();
+        Debug.Log("[UIManager] BGM Control created (code-generated)");
+    }
+
+    private void SetupBGMEvents()
+    {
+        _bgmToggle.onValueChanged.RemoveAllListeners();
+        _bgmToggle.onValueChanged.AddListener((isOn) =>
+        {
+            if (AudioManager.Instance != null)
+            {
+                if (isOn)
+                    AudioManager.Instance.PlayBGM();
+                else
+                    AudioManager.Instance.StopBGM();
+            }
+        });
+
+        _bgmVolumeSlider.onValueChanged.RemoveAllListeners();
         _bgmVolumeSlider.onValueChanged.AddListener((value) =>
         {
             if (_bgmVolumeText != null)
@@ -2166,23 +1746,20 @@ public class UIManager : MonoBehaviour
             if (AudioManager.Instance != null)
                 AudioManager.Instance.SetBGMVolume(value);
         });
-        
-        // AudioManager의 현재 볼륨으로 초기화
+
         if (AudioManager.Instance != null)
         {
             float currentVolume = AudioManager.Instance.GetComponent<AudioSource>()?.volume ?? 0.5f;
             _bgmVolumeSlider.value = currentVolume;
-            _bgmVolumeText.text = $"{Mathf.RoundToInt(currentVolume * 100)}%";
-            Debug.Log($"[UIManager] BGM volume initialized to {currentVolume * 100}%");
+            if (_bgmVolumeText != null)
+                _bgmVolumeText.text = $"{Mathf.RoundToInt(currentVolume * 100)}%";
         }
         else
         {
-            // AudioManager 없으면 기본값
             _bgmVolumeSlider.value = 0.5f;
-            _bgmVolumeText.text = "50%";
+            if (_bgmVolumeText != null)
+                _bgmVolumeText.text = "50%";
         }
-        
-        Debug.Log("[UIManager] BGM Control created successfully!");
     }
 
     private void UpdateScore(int score)
@@ -2190,9 +1767,6 @@ public class UIManager : MonoBehaviour
         if (_scoreText != null)
         {
             _scoreText.text = score.ToString();
-            // 항상 검정색 유지 (다크모드에서도)
-            _scoreText.color = new Color(0.17f, 0.17f, 0.18f);
-            Debug.Log($"[UIManager] Score updated to: {score}");
         }
         else
         {
@@ -2214,47 +1788,15 @@ public class UIManager : MonoBehaviour
             float maxTime = GameManager.Instance.GameDuration;
             float ratio = time / maxTime;
             _timerSlider.value = ratio;
-
-            // 색상 변화 (초록 → 노랑 → 빨강)
-            if (_timerSliderFill != null)
-            {
-                if (ratio > 0.5f)
-                {
-                    // 초록 → 노랑
-                    float t = (ratio - 0.5f) * 2f;
-                    _timerSliderFill.color = Color.Lerp(new Color(0.95f, 0.85f, 0.3f), new Color(0.4f, 0.8f, 0.5f), t);
-                }
-                else if (ratio > 0.25f)
-                {
-                    // 노랑 → 주황
-                    float t = (ratio - 0.25f) * 4f;
-                    _timerSliderFill.color = Color.Lerp(new Color(1f, 0.65f, 0.2f), new Color(0.95f, 0.85f, 0.3f), t);
-                }
-                else
-                {
-                    // 주황 → 빨강 (+ 깜빡임)
-                    float t = ratio * 4f;
-                    Color red = new Color(1f, 0.3f, 0.3f);
-                    Color orange = new Color(1f, 0.65f, 0.2f);
-                    _timerSliderFill.color = Color.Lerp(red, orange, t);
-                    
-                    // 깜빡임 효과
-                    float pulse = 0.7f + 0.3f * Mathf.PingPong(Time.time * 3f, 1f);
-                    _timerSliderFill.color *= pulse;
-                }
-            }
         }
 
-        // ⭐ 텍스트 색상 (항상 검정색, 30초 이하일 때만 경고색)
-        if (time <= 30f)
+        // 직렬화 안 된 경우만 색상 변경
+        if (serializedTimerText == null)
         {
-            // 30초 이하: 빨강-금색 깜빡임
-            _timerText.color = Color.Lerp(new Color(1f, 0.3f, 0.3f), CAT_EYE_GOLD, Mathf.PingPong(Time.time * 2f, 1f));
-        }
-        else
-        {
-            // 30초 이상: 항상 검정색 (다크모드에서도)
-            _timerText.color = new Color(0.17f, 0.17f, 0.18f);
+            if (time <= 30f)
+                _timerText.color = Color.Lerp(new Color(1f, 0.3f, 0.3f), CAT_EYE_GOLD, Mathf.PingPong(Time.time * 2f, 1f));
+            else
+                _timerText.color = new Color(0.17f, 0.17f, 0.18f);
         }
     }
 
@@ -2337,12 +1879,12 @@ public class UIManager : MonoBehaviour
             case 3:
                 _countdownCatFace.text = "=u.u=";
                 _countdownText.text = "3";
-                _countdownText.color = ThemeManager.Instance.GetColor("TextSecondary");
+                _countdownText.color = new Color(0.4f, 0.4f, 0.4f);
                 break;
             case 2:
                 _countdownCatFace.text = "=-.o=";
                 _countdownText.text = "2";
-                _countdownText.color = ThemeManager.Instance.GetColor("TextPrimary");
+                _countdownText.color = new Color(0.17f, 0.17f, 0.18f);
                 break;
             case 1:
                 _countdownCatFace.text = "=^o^=";
@@ -2645,7 +2187,7 @@ public class UIManager : MonoBehaviour
             _leaderboardRetryCount = 0;
 
 #if UNITY_EDITOR
-            ShowEditorLeaderboardMessage();
+            ShowPlaceholderLeaderboard();
 #else
             ShowLoadingMessage();
             
@@ -2679,19 +2221,6 @@ public class UIManager : MonoBehaviour
         loadingMsg.fontStyle = FontStyles.Bold;
     }
 
-#if UNITY_EDITOR
-    private void ShowEditorLeaderboardMessage()
-    {
-        if (_leaderboardEntriesContainer == null) return;
-        foreach (Transform child in _leaderboardEntriesContainer)
-            Destroy(child.gameObject);
-
-        var msg = CreateTextElement(_leaderboardEntriesContainer,
-            "Ranking is available\nin WebGL build only.\n\nBuild & deploy to see\nFirebase leaderboard.",
-            26, Color.gray, new Vector2(0, -80), new Vector2(550, 300), isPrimary: false);
-        msg.alignment = TextAlignmentOptions.Center;
-    }
-#endif
 
     public void HideLeaderboard()
     {
@@ -3121,7 +2650,6 @@ public class UIManager : MonoBehaviour
     {
         btn.onClick.RemoveAllListeners();
         btn.onClick.AddListener(onClick);
-        ResetButtonColor(btn, color);
     }
 
     private void ResetButtonColor(Button btn, Color color)
