@@ -266,13 +266,7 @@ public class AppleGameSetup : MonoBehaviour
                 fm.SendMessage("Awake");
         }
 
-        if (GameObject.Find("LocalLeaderboardManager") == null)
-        {
-            var go = new GameObject("LocalLeaderboardManager");
-            var llm = go.AddComponent<LocalLeaderboardManager>();
-            if (!Application.isPlaying)
-                llm.SendMessage("Awake");
-        }
+        // LocalLeaderboardManager 제거됨 - Firebase만 사용
     }
 
     /// <summary>

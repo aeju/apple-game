@@ -2421,9 +2421,6 @@ public class UIManager : MonoBehaviour
         _sessionSubmitted = true;
         Debug.Log($"[UIManager] Submitting score: {nickname} - {_currentSessionScore} (combo: {_currentSessionCombo})");
 
-        if (LocalLeaderboardManager.Instance != null)
-            LocalLeaderboardManager.Instance.SubmitScore(nickname, _currentSessionScore, _currentSessionCombo);
-
         if (FirebaseManager.Instance != null)
             FirebaseManager.Instance.SubmitScore(nickname, _currentSessionScore, _currentSessionCombo);
     }
@@ -2574,34 +2571,18 @@ public class UIManager : MonoBehaviour
             
             Debug.Log("[UIManager] ShowLeaderboard called");
             
-            // 로컬 랭킹 우선 표시 (빠른 응답)
-            if (LocalLeaderboardManager.Instance != null)
+            // Loading 표시
+            ShowLoadingMessage();
+            
+            // Firebase에서 랭킹 로드
+            if (FirebaseManager.Instance != null)
             {
-                var localEntries = LocalLeaderboardManager.Instance.GetTopEntries(10);
-                Debug.Log($"[UIManager] Local leaderboard has {localEntries.Count} entries");
-                
-                if (localEntries != null && localEntries.Count > 0)
-                {
-                    Debug.Log($"[UIManager] ✅ Displaying local leaderboard ({localEntries.Count} entries)");
-                    DisplayLeaderboard(localEntries);
-                }
-                else
-                {
-                    Debug.LogWarning("[UIManager] No local leaderboard entries, showing empty message");
-                    DisplayLeaderboard(new List<LeaderboardEntry>());
-                }
+                FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
             }
             else
             {
-                Debug.LogError("[UIManager] ❌ LocalLeaderboardManager.Instance is NULL!");
+                Debug.LogWarning("[UIManager] FirebaseManager is null");
                 DisplayLeaderboard(new List<LeaderboardEntry>());
-            }
-            
-            // Firebase 랭킹도 시도 (백그라운드, 있으면 업데이트)
-            if (FirebaseManager.Instance != null)
-            {
-                Debug.Log("[UIManager] Also trying Firebase leaderboard in background...");
-                FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
             }
         }
         else
@@ -2648,24 +2629,7 @@ public class UIManager : MonoBehaviour
 
     private void OnLeaderboardLoaded(System.Collections.Generic.List<LeaderboardEntry> entries)
     {
-        // Firebase에서 데이터를 불러오지 못했으면 로컬 랭킹으로 폴백
-        if (entries == null || entries.Count == 0)
-        {
-            Debug.LogWarning("[UIManager] Firebase leaderboard empty or failed, trying local leaderboard...");
-            
-            if (LocalLeaderboardManager.Instance != null)
-            {
-                var localEntries = LocalLeaderboardManager.Instance.GetTopEntries(10);
-                if (localEntries != null && localEntries.Count > 0)
-                {
-                    Debug.Log($"[UIManager] Showing local leaderboard ({localEntries.Count} entries)");
-                    DisplayLeaderboard(localEntries);
-                    return;
-                }
-            }
-        }
-        
-        DisplayLeaderboard(entries);
+        DisplayLeaderboard(entries ?? new System.Collections.Generic.List<LeaderboardEntry>());
     }
 
     private void DisplayLeaderboard(System.Collections.Generic.List<LeaderboardEntry> entries)

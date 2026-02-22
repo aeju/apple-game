@@ -1,9 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using System.Runtime.InteropServices;
 
 #if !UNITY_WEBGL || UNITY_EDITOR
-// Firebase SDK 임포트 (WebGL 빌드에서는 제외)
 using System.Threading.Tasks;
 using Firebase;
 using Firebase.Auth;
@@ -11,13 +11,23 @@ using Firebase.Firestore;
 using Firebase.Extensions;
 #endif
 
-/// <summary>
-/// Firebase 연동 관리자 (Firestore 사용)
-/// WebGL 빌드에서는 로컬 랭킹만 사용
-/// </summary>
 public class FirebaseManager : MonoBehaviour
 {
     public static FirebaseManager Instance { get; private set; }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void FirebaseBridge_Init();
+
+    [DllImport("__Internal")]
+    private static extern void FirebaseBridge_SubmitScore(string nickname, int score, int combo);
+
+    [DllImport("__Internal")]
+    private static extern void FirebaseBridge_LoadLeaderboard(int limit);
+
+    private bool _jsInitialized = false;
+    private Action<List<LeaderboardEntry>> _pendingCallback;
+#endif
 
 #if !UNITY_WEBGL || UNITY_EDITOR
     private bool _isInitialized = false;
@@ -36,116 +46,120 @@ public class FirebaseManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-#if !UNITY_WEBGL || UNITY_EDITOR
-        // Editor 또는 non-WebGL 플랫폼에서만 Firebase 초기화
+#if UNITY_WEBGL && !UNITY_EDITOR
+        Debug.Log("[FirebaseManager] WebGL build - Initializing via JS bridge");
+        FirebaseBridge_Init();
+#elif !UNITY_WEBGL || UNITY_EDITOR
         Debug.Log("[FirebaseManager] Initializing Firebase (non-WebGL platform)");
         InitializeFirebase();
-#else
-        // WebGL 빌드 - Firebase 사용 안 함
-        Debug.Log("[FirebaseManager] ⚠️ WebGL build - Firebase disabled, using local leaderboard only");
 #endif
     }
 
-#if !UNITY_WEBGL || UNITY_EDITOR
-    /// <summary>
-    /// Firebase 초기화 (익명 인증 포함)
-    /// </summary>
-    private void InitializeFirebase()
+    // ─── JS 콜백 (WebGL에서 SendMessage로 호출됨) ───
+
+    public void OnJsInitialized(string result)
     {
-        Debug.Log("[FirebaseManager] Initializing Firebase...");
-
-        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (result == "ok")
         {
-            var dependencyStatus = task.Result;
-            if (dependencyStatus == DependencyStatus.Available)
-            {
-                _db = FirebaseFirestore.DefaultInstance;
-                _auth = FirebaseAuth.DefaultInstance;
-                
-                Debug.Log("[FirebaseManager] Firebase initialized successfully!");
-                
-                // 익명 로그인
-                SignInAnonymously();
-            }
-            else
-            {
-                Debug.LogError($"[FirebaseManager] Could not resolve Firebase dependencies: {dependencyStatus}");
-            }
-        });
-    }
-
-    /// <summary>
-    /// 익명 로그인
-    /// </summary>
-    private void SignInAnonymously()
-    {
-        _auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(task =>
+            _jsInitialized = true;
+            Debug.Log("[FirebaseManager] JS Firebase initialized successfully!");
+        }
+        else
         {
-            if (task.IsCanceled)
-            {
-                Debug.LogError("[FirebaseManager] SignInAnonymously was canceled.");
-                return;
-            }
-            if (task.IsFaulted)
-            {
-                Debug.LogError("[FirebaseManager] SignInAnonymously encountered an error: " + task.Exception);
-                return;
-            }
-
-            FirebaseUser newUser = task.Result.User;
-            _userId = newUser.UserId;
-            _isInitialized = true;
-            Debug.Log($"[FirebaseManager] User signed in successfully: {_userId}");
-        });
-    }
+            Debug.LogError("[FirebaseManager] JS Firebase init failed: " + result);
+        }
 #endif
+    }
 
-    /// <summary>
-    /// 점수를 랭킹에 제출
-    /// </summary>
+    public void OnJsLeaderboardLoaded(string json)
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        Debug.Log("[FirebaseManager] JS leaderboard data received: " + json);
+
+        var entries = new List<LeaderboardEntry>();
+
+        try
+        {
+            var wrapper = JsonUtility.FromJson<JsEntryArray>("{\"items\":" + json + "}");
+            if (wrapper.items != null)
+            {
+                foreach (var item in wrapper.items)
+                {
+                    entries.Add(new LeaderboardEntry
+                    {
+                        nickname = item.nickname,
+                        score = item.score,
+                        combo = item.combo,
+                        timestamp = item.timestamp
+                    });
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("[FirebaseManager] JSON parse error: " + e.Message);
+        }
+
+        Debug.Log($"[FirebaseManager] Parsed {entries.Count} entries from JS");
+        _pendingCallback?.Invoke(entries);
+        _pendingCallback = null;
+#endif
+    }
+
+    // ─── 공통 API ───
+
     public void SubmitScore(string nickname, int score, int combo)
     {
-#if !UNITY_WEBGL || UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (!_jsInitialized)
+        {
+            Debug.LogWarning("[FirebaseManager] JS not initialized. Score not submitted.");
+            return;
+        }
+        Debug.Log($"[FirebaseManager] Submitting score via JS: {nickname} - {score}");
+        FirebaseBridge_SubmitScore(nickname, score, combo);
+
+#elif !UNITY_WEBGL || UNITY_EDITOR
         if (!_isInitialized)
         {
             Debug.LogWarning("[FirebaseManager] Firebase not initialized. Score not submitted.");
             return;
         }
 
-        var entry = new LeaderboardEntry(nickname, score, combo);
-        
         var collection = _db.Collection("leaderboard");
         var docData = new Dictionary<string, object>
         {
-            { "nickname", entry.nickname },
-            { "score", entry.score },
-            { "combo", entry.combo },
-            { "timestamp", entry.timestamp },
+            { "nickname", nickname },
+            { "score", score },
+            { "combo", combo },
+            { "timestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() },
             { "userId", _userId }
         };
 
         collection.AddAsync(docData).ContinueWithOnMainThread(task =>
         {
             if (task.IsCompleted)
-            {
-                Debug.Log($"[FirebaseManager] Score submitted to Firebase: {nickname} - {score}");
-            }
+                Debug.Log($"[FirebaseManager] Score submitted: {nickname} - {score}");
             else
-            {
-                Debug.LogError($"[FirebaseManager] Failed to submit score: {task.Exception}");
-            }
+                Debug.LogError($"[FirebaseManager] Failed to submit: {task.Exception}");
         });
-#else
-        Debug.Log($"[FirebaseManager] WebGL build - Firebase disabled. Score not submitted: {nickname} - {score}");
 #endif
     }
 
-    /// <summary>
-    /// 상위 N개의 랭킹 불러오기
-    /// </summary>
     public void LoadLeaderboard(Action<List<LeaderboardEntry>> callback, int limit = 10)
     {
-#if !UNITY_WEBGL || UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (!_jsInitialized)
+        {
+            Debug.LogWarning("[FirebaseManager] JS not initialized.");
+            callback?.Invoke(null);
+            return;
+        }
+        _pendingCallback = callback;
+        FirebaseBridge_LoadLeaderboard(limit);
+
+#elif !UNITY_WEBGL || UNITY_EDITOR
         if (!_isInitialized)
         {
             Debug.LogWarning("[FirebaseManager] Firebase not initialized.");
@@ -153,38 +167,86 @@ public class FirebaseManager : MonoBehaviour
             return;
         }
 
-        var collection = _db.Collection("leaderboard");
-        var query = collection.OrderByDescending("score").Limit(limit);
-
+        var query = _db.Collection("leaderboard").OrderByDescending("score").Limit(limit);
         query.GetSnapshotAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted)
             {
-                Debug.LogError($"[FirebaseManager] Failed to load leaderboard: {task.Exception}");
+                Debug.LogError($"[FirebaseManager] Load failed: {task.Exception}");
                 callback?.Invoke(null);
                 return;
             }
 
             var entries = new List<LeaderboardEntry>();
-            foreach (var document in task.Result.Documents)
+            foreach (var doc in task.Result.Documents)
             {
-                var data = document.ToDictionary();
-                var entry = new LeaderboardEntry
+                var d = doc.ToDictionary();
+                entries.Add(new LeaderboardEntry
                 {
-                    nickname = data.ContainsKey("nickname") ? data["nickname"].ToString() : "Unknown",
-                    score = data.ContainsKey("score") ? Convert.ToInt32(data["score"]) : 0,
-                    combo = data.ContainsKey("combo") ? Convert.ToInt32(data["combo"]) : 0,
-                    timestamp = data.ContainsKey("timestamp") ? Convert.ToInt64(data["timestamp"]) : 0
-                };
-                entries.Add(entry);
+                    nickname = d.ContainsKey("nickname") ? d["nickname"].ToString() : "Unknown",
+                    score = d.ContainsKey("score") ? Convert.ToInt32(d["score"]) : 0,
+                    combo = d.ContainsKey("combo") ? Convert.ToInt32(d["combo"]) : 0,
+                    timestamp = d.ContainsKey("timestamp") ? Convert.ToInt64(d["timestamp"]) : 0
+                });
             }
 
-            Debug.Log($"[FirebaseManager] Loaded {entries.Count} leaderboard entries from Firebase");
+            Debug.Log($"[FirebaseManager] Loaded {entries.Count} entries");
             callback?.Invoke(entries);
         });
-#else
-        Debug.Log("[FirebaseManager] WebGL build - Firebase disabled. Returning null.");
-        callback?.Invoke(null);
 #endif
+    }
+
+    // ─── Non-WebGL 초기화 ───
+
+#if !UNITY_WEBGL || UNITY_EDITOR
+    private void InitializeFirebase()
+    {
+        FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.Result == DependencyStatus.Available)
+            {
+                _db = FirebaseFirestore.DefaultInstance;
+                _auth = FirebaseAuth.DefaultInstance;
+                Debug.Log("[FirebaseManager] Firebase initialized!");
+                SignInAnonymously();
+            }
+            else
+            {
+                Debug.LogError($"[FirebaseManager] Dependency error: {task.Result}");
+            }
+        });
+    }
+
+    private void SignInAnonymously()
+    {
+        _auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                Debug.LogError("[FirebaseManager] Auth failed: " + task.Exception);
+                return;
+            }
+            _userId = task.Result.User.UserId;
+            _isInitialized = true;
+            Debug.Log($"[FirebaseManager] Signed in: {_userId}");
+        });
+    }
+#endif
+
+    // ─── WebGL JSON 파싱용 ───
+
+    [Serializable]
+    private class JsEntryArray
+    {
+        public JsEntry[] items;
+    }
+
+    [Serializable]
+    private class JsEntry
+    {
+        public string nickname;
+        public int score;
+        public int combo;
+        public long timestamp;
     }
 }
