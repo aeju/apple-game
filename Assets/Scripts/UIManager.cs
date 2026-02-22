@@ -272,6 +272,77 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Editor에서 개별 패널을 생성합니다. (Edit 모드 전용)
+    /// </summary>
+    public void EditorGeneratePanel(string panelName)
+    {
+        if (_canvas == null)
+        {
+            _canvas = GetComponent<Canvas>();
+            if (_canvas == null)
+            {
+                Debug.LogError("[UIManager] Canvas not found!");
+                return;
+            }
+        }
+
+        switch (panelName)
+        {
+            case "MainMenuPanel":
+                var existing = _canvas.transform.Find("MainMenuPanel");
+                if (existing != null) DestroyImmediate(existing.gameObject);
+                CreateMainMenuPanel();
+                _mainMenuPanel?.SetActive(true);
+                break;
+            case "HUDPanel":
+                var existingHud = _canvas.transform.Find("HUDPanel");
+                if (existingHud != null) DestroyImmediate(existingHud.gameObject);
+                CreateHUDPanel();
+                _hudPanel?.SetActive(true);
+                break;
+            case "CountdownPanel":
+                var existingCd = _canvas.transform.Find("CountdownPanel");
+                if (existingCd != null) DestroyImmediate(existingCd.gameObject);
+                CreateCountdownPanel();
+                _countdownPanel?.SetActive(true);
+                break;
+            case "ResultPanel":
+                var existingRes = _canvas.transform.Find("ResultPanel");
+                if (existingRes != null) DestroyImmediate(existingRes.gameObject);
+                CreateResultPanel();
+                _resultPanel?.SetActive(true);
+                break;
+            case "LeaderboardPanel":
+                var existingLb = _canvas.transform.Find("LeaderboardPanel");
+                if (existingLb != null) DestroyImmediate(existingLb.gameObject);
+                CreateLeaderboardPanel();
+                _leaderboardPanel?.SetActive(true);
+                break;
+        }
+
+        Debug.Log($"[UIManager] Editor: {panelName} generated!");
+    }
+
+    /// <summary>
+    /// Editor에서 특정 패널을 삭제합니다.
+    /// </summary>
+    public void EditorDeletePanel(string panelName)
+    {
+        if (_canvas == null)
+        {
+            _canvas = GetComponent<Canvas>();
+            if (_canvas == null) return;
+        }
+
+        var panel = _canvas.transform.Find(panelName);
+        if (panel != null)
+        {
+            DestroyImmediate(panel.gameObject);
+            Debug.Log($"[UIManager] Editor: {panelName} deleted!");
+        }
+    }
+
+    /// <summary>
     /// 이미 생성된 패널들을 다시 참조합니다 (Edit 모드에서 생성된 경우)
     /// </summary>
     private void ReReferenceExistingPanels()
@@ -2571,10 +2642,13 @@ public class UIManager : MonoBehaviour
             
             Debug.Log("[UIManager] ShowLeaderboard called");
             
-            // Loading 표시
+            _leaderboardRetryCount = 0;
+
+#if UNITY_EDITOR
+            ShowEditorLeaderboardMessage();
+#else
             ShowLoadingMessage();
             
-            // Firebase에서 랭킹 로드
             if (FirebaseManager.Instance != null)
             {
                 FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
@@ -2584,6 +2658,7 @@ public class UIManager : MonoBehaviour
                 Debug.LogWarning("[UIManager] FirebaseManager is null");
                 DisplayLeaderboard(new List<LeaderboardEntry>());
             }
+#endif
         }
         else
         {
@@ -2593,11 +2668,9 @@ public class UIManager : MonoBehaviour
     
     private void ShowLoadingMessage()
     {
-        // 기존 엔트리 삭제
+        if (_leaderboardEntriesContainer == null) return;
         foreach (Transform child in _leaderboardEntriesContainer)
-        {
             Destroy(child.gameObject);
-        }
         
         var loadingMsg = CreateTextElement(_leaderboardEntriesContainer, 
             "Loading...",
@@ -2605,6 +2678,20 @@ public class UIManager : MonoBehaviour
         loadingMsg.alignment = TextAlignmentOptions.Center;
         loadingMsg.fontStyle = FontStyles.Bold;
     }
+
+#if UNITY_EDITOR
+    private void ShowEditorLeaderboardMessage()
+    {
+        if (_leaderboardEntriesContainer == null) return;
+        foreach (Transform child in _leaderboardEntriesContainer)
+            Destroy(child.gameObject);
+
+        var msg = CreateTextElement(_leaderboardEntriesContainer,
+            "Ranking is available\nin WebGL build only.\n\nBuild & deploy to see\nFirebase leaderboard.",
+            26, Color.gray, new Vector2(0, -80), new Vector2(550, 300), isPrimary: false);
+        msg.alignment = TextAlignmentOptions.Center;
+    }
+#endif
 
     public void HideLeaderboard()
     {
@@ -2627,9 +2714,31 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    private int _leaderboardRetryCount = 0;
+    private const int MAX_LEADERBOARD_RETRIES = 3;
+
     private void OnLeaderboardLoaded(System.Collections.Generic.List<LeaderboardEntry> entries)
     {
+        if (entries == null && _leaderboardRetryCount < MAX_LEADERBOARD_RETRIES)
+        {
+            _leaderboardRetryCount++;
+            Debug.Log($"[UIManager] Firebase not ready, retrying... ({_leaderboardRetryCount}/{MAX_LEADERBOARD_RETRIES})");
+            StartCoroutine(RetryLoadLeaderboard());
+            return;
+        }
+
+        _leaderboardRetryCount = 0;
         DisplayLeaderboard(entries ?? new System.Collections.Generic.List<LeaderboardEntry>());
+    }
+
+    private System.Collections.IEnumerator RetryLoadLeaderboard()
+    {
+        yield return new WaitForSeconds(1.5f);
+
+        if (_leaderboardPanel != null && _leaderboardPanel.activeSelf && FirebaseManager.Instance != null)
+        {
+            FirebaseManager.Instance.LoadLeaderboard(OnLeaderboardLoaded);
+        }
     }
 
     private void DisplayLeaderboard(System.Collections.Generic.List<LeaderboardEntry> entries)
