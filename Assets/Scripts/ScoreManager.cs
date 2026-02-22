@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// 점수, 콤보, 최고기록을 관리합니다.
+/// 점수, 콤보를 관리합니다.
 /// </summary>
 public class ScoreManager : MonoBehaviour
 {
@@ -12,7 +12,6 @@ public class ScoreManager : MonoBehaviour
     public int ApplesRemoved { get; private set; }
     public int Combo { get; private set; }
     public int MaxCombo { get; private set; }
-    public int BestScore { get; private set; }
 
     [Header("Combo Settings")]
     public float ComboTimeout = 3f;
@@ -28,7 +27,6 @@ public class ScoreManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(this); return; }
         Instance = this;
-        BestScore = PlayerPrefs.GetInt("AppleGame_BestScore", 0);
     }
 
     private void Update()
@@ -49,12 +47,10 @@ public class ScoreManager : MonoBehaviour
     /// </summary>
     public void AddScore(int appleCount, Vector3 worldPos = default)
     {
-        // 콤보 증가
         Combo++;
         if (Combo > MaxCombo) MaxCombo = Combo;
         _comboTimer = ComboTimeout;
 
-        // 점수 계산 (콤보 보너스 적용)
         int basePoints = appleCount;
         float comboMultiplier = 1f + (Combo - 1) * 0.15f;
         int totalPoints = Mathf.RoundToInt(basePoints * comboMultiplier);
@@ -80,20 +76,5 @@ public class ScoreManager : MonoBehaviour
         _comboTimer = 0;
         OnScoreChanged?.Invoke(0);
         OnComboChanged?.Invoke(0, 0);
-    }
-
-    /// <summary>
-    /// 최고기록을 저장합니다.
-    /// </summary>
-    public bool SaveBestScore()
-    {
-        if (Score > BestScore)
-        {
-            BestScore = Score;
-            PlayerPrefs.SetInt("AppleGame_BestScore", BestScore);
-            PlayerPrefs.Save();
-            return true;
-        }
-        return false;
     }
 }

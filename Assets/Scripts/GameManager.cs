@@ -129,7 +129,6 @@ public class GameManager : MonoBehaviour
         }
 
         SetState(GameState.GameOver);
-        ScoreManager.Instance?.SaveBestScore();
     }
 
     /// <summary>

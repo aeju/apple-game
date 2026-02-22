@@ -64,10 +64,6 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Vector2 rankingButtonSize = new Vector2(350, 80);
     [SerializeField] private Color rankingButtonColor = new Color(0.2f, 0.5f, 0.9f);
 
-    [Header("Main Menu - Best Score")]
-    [SerializeField] private Vector2 bestScorePosition = new Vector2(0, -190);
-    [SerializeField] private float bestScoreFontSize = 24f;
-
     [Header("HUD - Texts")]
     [Tooltip("씬에 미리 배치한 SCORE 숫자 텍스트 (null이면 자동 생성)")]
     [SerializeField] private TextMeshProUGUI serializedScoreText = null;
@@ -112,8 +108,6 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Color resultPanelBgColor = Color.white;
 
     [Header("Result - Texts")]
-    [Tooltip("씬에 미리 배치한 고양이 얼굴 텍스트 (null이면 자동 생성)")]
-    [SerializeField] private TextMeshProUGUI serializedResultCatFace = null;
     [Tooltip("씬에 미리 배치한 GAME OVER 타이틀 (null이면 자동 생성)")]
     [SerializeField] private TextMeshProUGUI serializedResultTitle = null;
     [Tooltip("씬에 미리 배치한 점수 텍스트 (null이면 자동 생성)")]
@@ -122,13 +116,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI serializedResultApplesText = null;
     [Tooltip("씬에 미리 배치한 콤보 텍스트 (null이면 자동 생성)")]
     [SerializeField] private TextMeshProUGUI serializedResultComboText = null;
-    [Tooltip("씬에 미리 배치한 최고점수 텍스트 (null이면 자동 생성)")]
-    [SerializeField] private TextMeshProUGUI serializedResultBestText = null;
     [Tooltip("씬에 미리 배치한 신기록 텍스트 (null이면 자동 생성)")]
     [SerializeField] private TextMeshProUGUI serializedResultNewRecordText = null;
     [SerializeField] private TMP_FontAsset resultFont = null;
     [SerializeField] private float resultTitleFontSize = 48f;
-    [SerializeField] private float resultCatFaceFontSize = 52f;
     [SerializeField] private float resultScoreFontSize = 40f;
     [SerializeField] private float resultDetailFontSize = 28f;
     [SerializeField] private float resultNewRecordFontSize = 36f;
@@ -244,16 +235,11 @@ public class UIManager : MonoBehaviour
     // 결과
     private TextMeshProUGUI _resultScoreText;
     private TextMeshProUGUI _resultApplesText;
-    private TextMeshProUGUI _resultBestText;
     private TextMeshProUGUI _resultComboText;
     private TextMeshProUGUI _resultNewRecordText;
-    private TextMeshProUGUI _resultCatFace;
     private TMP_InputField _nicknameInputField;
     private Button _nicknameChangeButton;
     private string _currentNickname;
-
-    // 메인메뉴
-    private TextMeshProUGUI _menuBestScoreText;
 
     // 랭킹
     private GameObject _leaderboardPanel;
@@ -412,8 +398,6 @@ public class UIManager : MonoBehaviour
                 _resultPanel?.SetActive(true);
                 if (_resultScoreText != null) _resultScoreText.text = "1,250";
                 if (_resultComboText != null) _resultComboText.text = "Best Combo: 8";
-                if (_resultBestText != null) _resultBestText.text = "BEST: 2,500";
-                if (_resultCatFace != null) _resultCatFace.text = "=^.^=";
                 break;
             case "LeaderboardPanel":
                 var existingLb = _canvas.transform.Find("LeaderboardPanel");
@@ -848,11 +832,9 @@ public class UIManager : MonoBehaviour
         }
 
         // 결과 화면 요소: 직렬화 우선 → 텍스트 내용 검색 → 생성
-        _resultCatFace = serializedResultCatFace;
         _resultScoreText = serializedResultScoreText;
         _resultApplesText = serializedResultApplesText;
         _resultComboText = serializedResultComboText;
-        _resultBestText = serializedResultBestText;
         _resultNewRecordText = serializedResultNewRecordText;
 
         var resultTexts = _resultPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
@@ -862,24 +844,13 @@ public class UIManager : MonoBehaviour
                 _resultScoreText = txt;
             else if (_resultApplesText == null && txt.text.Contains("Paws:"))
                 _resultApplesText = txt;
-            else if (_resultBestText == null && txt.text.Contains("Best:"))
-                _resultBestText = txt;
             else if (_resultComboText == null && txt.text.Contains("Combo:"))
                 _resultComboText = txt;
             else if (_resultNewRecordText == null && txt.text.Contains("RECORD"))
                 _resultNewRecordText = txt;
-            else if (_resultCatFace == null && (txt.text.Contains("=^") || txt.text.Contains("Meh")))
-                _resultCatFace = txt;
         }
 
         // 없는 텍스트만 생성 (패널 유지)
-        if (_resultCatFace == null)
-        {
-            _resultCatFace = CreateTextElement(_resultPanel.transform, "=^.^=",
-                resultCatFaceFontSize, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
-            _resultCatFace.fontStyle = FontStyles.Bold;
-            if (resultFont != null) _resultCatFace.font = resultFont;
-        }
         if (_resultScoreText == null)
         {
             _resultScoreText = CreateTextElement(_resultPanel.transform, "Score: 0",
@@ -900,12 +871,6 @@ public class UIManager : MonoBehaviour
                 resultDetailFontSize, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
             _secondaryTexts.Add(_resultComboText);
             if (resultFont != null) _resultComboText.font = resultFont;
-        }
-        if (_resultBestText == null)
-        {
-            _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
-                resultDetailFontSize, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
-            if (resultFont != null) _resultBestText.font = resultFont;
         }
         if (_resultNewRecordText == null)
         {
@@ -956,12 +921,7 @@ public class UIManager : MonoBehaviour
         var menuTexts = _mainMenuPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
         foreach (var txt in menuTexts)
         {
-            if (txt.text.Contains("Best:"))
-            {
-                _menuBestScoreText = txt;
-                txt.fontSize = bestScoreFontSize;
-            }
-            else if (txt.text.Contains("PAW 10"))
+            if (txt.text.Contains("PAW 10"))
             {
                 _titleText = txt;
                 txt.fontSize = titleFontSize;
@@ -1367,7 +1327,6 @@ public class UIManager : MonoBehaviour
         if (state == GameState.Menu)
         {
             SubmitSessionIfNeeded();
-            UpdateMenuBestScore();
             _currentSessionScore = 0;
             _currentSessionCombo = 0;
             _sessionSubmitted = false;
@@ -1470,17 +1429,6 @@ public class UIManager : MonoBehaviour
             }
         }
 
-        // 최고기록
-        _menuBestScoreText = CreateTextElement(_mainMenuPanel.transform, "Best: 0",
-            bestScoreFontSize, CAT_EYE_GOLD, bestScorePosition, new Vector2(400, 50), isPrimary: false);
-
-        // 다크모드 토글 제거됨
-    }
-
-    private void UpdateMenuBestScore()
-    {
-        if (_menuBestScoreText != null && ScoreManager.Instance != null)
-            _menuBestScoreText.text = $"Best: {ScoreManager.Instance.BestScore}";
     }
 
     // ─── HUD ───
@@ -1913,6 +1861,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
+
     private void UpdateTimer(float time)
     {
         if (_timerText == null) return;
@@ -2086,17 +2035,6 @@ public class UIManager : MonoBehaviour
         _resultPanel = CreatePanel("ResultPanel", resultPanelBgColor, true);
         SetFullStretch(_resultPanel.GetComponent<RectTransform>());
 
-        // 고양이 얼굴
-        if (serializedResultCatFace != null)
-            _resultCatFace = serializedResultCatFace;
-        else
-        {
-            _resultCatFace = CreateTextElement(_resultPanel.transform, "",
-                resultCatFaceFontSize, CAT_EYE_GOLD, new Vector2(0, 320), new Vector2(600, 80), isPrimary: false);
-            _resultCatFace.fontStyle = FontStyles.Bold;
-            if (resultFont != null) _resultCatFace.font = resultFont;
-        }
-
         // GAME OVER 타이틀
         if (serializedResultTitle != null)
         { /* Inspector 할당 사용 */ }
@@ -2139,16 +2077,6 @@ public class UIManager : MonoBehaviour
                 resultDetailFontSize, Color.gray, new Vector2(0, 60), new Vector2(500, 45), isPrimary: false);
             _secondaryTexts.Add(_resultComboText);
             if (resultFont != null) _resultComboText.font = resultFont;
-        }
-
-        // 최고점수
-        if (serializedResultBestText != null)
-            _resultBestText = serializedResultBestText;
-        else
-        {
-            _resultBestText = CreateTextElement(_resultPanel.transform, "Best: 0",
-                resultDetailFontSize, CAT_EYE_GOLD, new Vector2(0, 15), new Vector2(500, 45), isPrimary: false);
-            if (resultFont != null) _resultBestText.font = resultFont;
         }
 
         // 닉네임 입력 영역
@@ -2263,10 +2191,8 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        // Null 체크
         if (_resultScoreText == null || _resultApplesText == null || 
-            _resultComboText == null || _resultBestText == null || 
-            _resultCatFace == null || _resultNewRecordText == null)
+            _resultComboText == null || _resultNewRecordText == null)
         {
             Debug.LogError("[UIManager] Result UI elements are null! Re-referencing...");
             return;
@@ -2275,22 +2201,7 @@ public class UIManager : MonoBehaviour
         _resultScoreText.text = $"Score: {sm.Score}";
         _resultApplesText.text = $"Paws: {sm.ApplesRemoved}";
         _resultComboText.text = $"Max Combo: {sm.MaxCombo}";
-        _resultBestText.text = $"Best: {sm.BestScore}";
-        
-        if (sm.Score <= 30)
-            _resultCatFace.text = "=_=   Meh...";
-        else if (sm.Score <= 80)
-            _resultCatFace.text = "=^.^=   Purr~";
-        else if (sm.Score <= 150)
-            _resultCatFace.text = "=^o^=   Nya~!";
-        else
-            _resultCatFace.text = "=^*o*^=   MEOW!!";
-
-        bool isNewRecord = sm.Score >= sm.BestScore && sm.Score > 0;
-        _resultNewRecordText.gameObject.SetActive(isNewRecord);
-
-        if (isNewRecord)
-            StartCoroutine(CoPulseNewRecord());
+        _resultNewRecordText.gameObject.SetActive(false);
         
         // 닉네임 입력 필드를 비움 (매 게임마다 새로 입력)
         _currentNickname = "";
