@@ -94,6 +94,16 @@ public class UIManager : MonoBehaviour
     [Tooltip("씬에 미리 배치한 HOME 버튼 (null이면 자동 생성)")]
     [SerializeField] private Button serializedHomeButton = null;
 
+    [Header("Countdown")]
+    [Tooltip("씬에 미리 배치한 카운트다운 숫자 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedCountdownText = null;
+    [Tooltip("씬에 미리 배치한 카운트다운 고양이 얼굴 텍스트 (null이면 자동 생성)")]
+    [SerializeField] private TextMeshProUGUI serializedCountdownCatFace = null;
+    [SerializeField] private TMP_FontAsset countdownNumberFont = null;
+    [SerializeField] private float countdownNumberFontSize = 120f;
+    [SerializeField] private TMP_FontAsset countdownCatFaceFont = null;
+    [SerializeField] private float countdownCatFaceFontSize = 52f;
+
     [Header("Result - Buttons")]
     [Tooltip("씬에 미리 배치한 RETRY 버튼 (null이면 자동 생성)")]
     [SerializeField] private Button serializedRetryButton = null;
@@ -101,6 +111,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button serializedMenuButton = null;
     [Tooltip("씬에 미리 배치한 결과화면 RANKING 버튼 (null이면 자동 생성)")]
     [SerializeField] private Button serializedResultRankingButton = null;
+
+    [Header("Leaderboard - Background")]
+    [Tooltip("리더보드 패널 배경색 (투명도 조절 가능)")]
+    [SerializeField] private Color leaderboardPanelBgColor = Color.white;
 
     [Header("Leaderboard - Title")]
     [SerializeField] private string leaderboardTitleText = "🏆 LEADERBOARD 🏆";
@@ -729,48 +743,73 @@ public class UIManager : MonoBehaviour
             }
         }
 
-        // 카운트다운 요소 (GameObject 이름으로 안전하게 찾기)
-        var countdownNumber = _countdownPanel.transform.Find("CountdownNumber");
-        if (countdownNumber != null)
+        // 카운트다운 요소: 직렬화 우선 → 이름 검색 → 폴백 → 생성
+        if (serializedCountdownText != null)
         {
-            _countdownText = countdownNumber.GetComponent<TextMeshProUGUI>();
-            Debug.Log($"[UIManager] Found countdown text: {_countdownText != null}");
+            _countdownText = serializedCountdownText;
+            Debug.Log("[UIManager] Countdown text assigned from serialized field.");
         }
-        
-        var countdownCat = _countdownPanel.transform.Find("CatFace");
-        if (countdownCat != null)
+        else
         {
-            _countdownCatFace = countdownCat.GetComponent<TextMeshProUGUI>();
-            Debug.Log($"[UIManager] Found countdown cat face: {_countdownCatFace != null}");
+            var countdownNumber = _countdownPanel.transform.Find("CountdownNumber");
+            if (countdownNumber != null)
+                _countdownText = countdownNumber.GetComponent<TextMeshProUGUI>();
         }
-        
+
+        if (serializedCountdownCatFace != null)
+        {
+            _countdownCatFace = serializedCountdownCatFace;
+            Debug.Log("[UIManager] Countdown cat face assigned from serialized field.");
+        }
+        else
+        {
+            var countdownCat = _countdownPanel.transform.Find("CatFace");
+            if (countdownCat != null)
+                _countdownCatFace = countdownCat.GetComponent<TextMeshProUGUI>();
+        }
+
         // 이름으로 못 찾았으면 텍스트 내용으로 폴백
         if (_countdownText == null || _countdownCatFace == null)
         {
-            Debug.LogWarning("[UIManager] Countdown elements not found by name, trying fallback search...");
             var cdTexts = _countdownPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
-            Debug.Log($"[UIManager] Found {cdTexts.Length} TextMeshProUGUI components in CountdownPanel");
-            
             foreach (var txt in cdTexts)
             {
-                Debug.Log($"[UIManager] Checking text: '{txt.text}' on GameObject: '{txt.gameObject.name}'");
-                
                 if (_countdownText == null && (txt.text == "3" || txt.text.Length <= 2 && !txt.text.Contains("=")))
                     _countdownText = txt;
                 else if (_countdownCatFace == null && txt.text.Contains("="))
                     _countdownCatFace = txt;
             }
-            Debug.Log($"[UIManager] Fallback search - text: {_countdownText != null}, cat: {_countdownCatFace != null}");
         }
-        
-        // 여전히 못 찾았으면 카운트다운 패널 재생성
-        if (_countdownText == null || _countdownCatFace == null)
+
+        // 폰트/크기 적용 (직렬화가 아닌 경우만)
+        if (_countdownText != null && serializedCountdownText == null)
         {
-            Debug.LogWarning("[UIManager] Countdown elements not found. Recreating CountdownPanel...");
-            if (_countdownPanel != null)
-                Destroy(_countdownPanel);
-            CreateCountdownPanel();
-            Debug.Log("[UIManager] CountdownPanel recreated successfully.");
+            _countdownText.fontSize = countdownNumberFontSize;
+            if (countdownNumberFont != null) _countdownText.font = countdownNumberFont;
+        }
+        if (_countdownCatFace != null && serializedCountdownCatFace == null)
+        {
+            _countdownCatFace.fontSize = countdownCatFaceFontSize;
+            if (countdownCatFaceFont != null) _countdownCatFace.font = countdownCatFaceFont;
+        }
+
+        // 텍스트가 없으면 기존 패널에 추가 (패널 자체는 유지)
+        if (_countdownCatFace == null)
+        {
+            _countdownCatFace = CreateTextElement(_countdownPanel.transform, "",
+                countdownCatFaceFontSize, CAT_EYE_GOLD, new Vector2(0, 80), new Vector2(500, 80), isPrimary: false);
+            _countdownCatFace.alignment = TextAlignmentOptions.Center;
+            _countdownCatFace.gameObject.name = "CatFace";
+            if (countdownCatFaceFont != null) _countdownCatFace.font = countdownCatFaceFont;
+        }
+        if (_countdownText == null)
+        {
+            _countdownText = CreateTextElement(_countdownPanel.transform, "3",
+                countdownNumberFontSize, Color.white, new Vector2(0, -30), new Vector2(300, 200), isPrimary: true);
+            _countdownText.fontStyle = FontStyles.Bold;
+            _countdownText.alignment = TextAlignmentOptions.Center;
+            _countdownText.gameObject.name = "CountdownNumber";
+            if (countdownNumberFont != null) _countdownText.font = countdownNumberFont;
         }
 
         // 결과 화면 요소
@@ -1888,16 +1927,32 @@ public class UIManager : MonoBehaviour
         _countdownPanel = CreatePanel("CountdownPanel", Color.clear, false);
         SetFullStretch(_countdownPanel.GetComponent<RectTransform>());
 
-        _countdownCatFace = CreateTextElement(_countdownPanel.transform, "",
-            52, CAT_EYE_GOLD, new Vector2(0, 80), new Vector2(500, 80), isPrimary: false);
-        _countdownCatFace.alignment = TextAlignmentOptions.Center;
-        _countdownCatFace.gameObject.name = "CatFace"; // 재참조를 위한 명확한 이름
+        if (serializedCountdownCatFace != null)
+        {
+            _countdownCatFace = serializedCountdownCatFace;
+        }
+        else
+        {
+            _countdownCatFace = CreateTextElement(_countdownPanel.transform, "",
+                countdownCatFaceFontSize, CAT_EYE_GOLD, new Vector2(0, 80), new Vector2(500, 80), isPrimary: false);
+            _countdownCatFace.alignment = TextAlignmentOptions.Center;
+            _countdownCatFace.gameObject.name = "CatFace";
+            if (countdownCatFaceFont != null) _countdownCatFace.font = countdownCatFaceFont;
+        }
 
-        _countdownText = CreateTextElement(_countdownPanel.transform, "3",
-            120, Color.white, new Vector2(0, -30), new Vector2(300, 200), isPrimary: true);
-        _countdownText.fontStyle = FontStyles.Bold;
-        _countdownText.alignment = TextAlignmentOptions.Center;
-        _countdownText.gameObject.name = "CountdownNumber"; // 재참조를 위한 명확한 이름
+        if (serializedCountdownText != null)
+        {
+            _countdownText = serializedCountdownText;
+        }
+        else
+        {
+            _countdownText = CreateTextElement(_countdownPanel.transform, "3",
+                countdownNumberFontSize, Color.white, new Vector2(0, -30), new Vector2(300, 200), isPrimary: true);
+            _countdownText.fontStyle = FontStyles.Bold;
+            _countdownText.alignment = TextAlignmentOptions.Center;
+            _countdownText.gameObject.name = "CountdownNumber";
+            if (countdownNumberFont != null) _countdownText.font = countdownNumberFont;
+        }
 
         _countdownPanel.SetActive(false);
     }
@@ -2147,7 +2202,7 @@ public class UIManager : MonoBehaviour
 
     private void CreateLeaderboardPanel()
     {
-        _leaderboardPanel = CreatePanel("LeaderboardPanel", Color.white, true);
+        _leaderboardPanel = CreatePanel("LeaderboardPanel", leaderboardPanelBgColor, true);
         SetFullStretch(_leaderboardPanel.GetComponent<RectTransform>());
 
         var title = CreateTextElement(_leaderboardPanel.transform, leaderboardTitleText,
@@ -2336,7 +2391,7 @@ public class UIManager : MonoBehaviour
             emptyMsg.alignment = TextAlignmentOptions.Center;
             
             var containerRt = _leaderboardEntriesContainer.GetComponent<RectTransform>();
-            containerRt.sizeDelta = new Vector2(580, 500);
+            containerRt.sizeDelta = new Vector2(containerRt.sizeDelta.x, 500);
             return;
         }
 
@@ -2353,7 +2408,7 @@ public class UIManager : MonoBehaviour
 
         // 컨테이너 높이 조정
         var containerRt2 = _leaderboardEntriesContainer.GetComponent<RectTransform>();
-        containerRt2.sizeDelta = new Vector2(580, Mathf.Max(500, -yOffset + 50));
+        containerRt2.sizeDelta = new Vector2(containerRt2.sizeDelta.x, Mathf.Max(500, -yOffset + 50));
         
         Debug.Log("[UIManager] Leaderboard display complete");
     }
