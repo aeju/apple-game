@@ -3109,17 +3109,27 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 저장 완료 피드백
+    /// 저장 완료 피드백 (같은 텍스트 컴포넌트에서 문자열만 바꾸고, 폰트/크기/스타일은 유지)
     /// </summary>
     private IEnumerator CoShowSavedFeedback()
     {
         var btnText = _nicknameChangeButton.GetComponentInChildren<TextMeshProUGUI>();
         if (btnText != null)
         {
-            string original = btnText.text;
+            string originalStr = btnText.text;
+            var font = btnText.font;
+            float fontSize = btnText.fontSize;
+            var fontStyle = btnText.fontStyle;
+            Color color = btnText.color;
+
             btnText.text = "SAVED!";
             yield return new WaitForSeconds(1f);
-            btnText.text = original;
+
+            btnText.text = originalStr;
+            btnText.font = font;
+            btnText.fontSize = fontSize;
+            btnText.fontStyle = fontStyle;
+            btnText.color = color;
         }
     }
 }
