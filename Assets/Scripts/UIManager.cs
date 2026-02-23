@@ -1822,14 +1822,15 @@ public class UIManager : MonoBehaviour
                 else
                     AudioManager.Instance.StopBGM();
             }
+            if (_bgmVolumeText != null)
+                _bgmVolumeText.text = isOn ? $"{Mathf.RoundToInt(_bgmVolumeSlider.value * 100)}%" : "0%";
         });
 
         _bgmVolumeSlider.onValueChanged.RemoveAllListeners();
         _bgmVolumeSlider.onValueChanged.AddListener((value) =>
         {
-            if (_bgmVolumeText != null)
+            if (_bgmVolumeText != null && _bgmToggle != null && _bgmToggle.isOn)
                 _bgmVolumeText.text = $"{Mathf.RoundToInt(value * 100)}%";
-            
             if (AudioManager.Instance != null)
                 AudioManager.Instance.SetBGMVolume(value);
         });
@@ -1839,13 +1840,13 @@ public class UIManager : MonoBehaviour
             float currentVolume = AudioManager.Instance.GetComponent<AudioSource>()?.volume ?? 0.5f;
             _bgmVolumeSlider.value = currentVolume;
             if (_bgmVolumeText != null)
-                _bgmVolumeText.text = $"{Mathf.RoundToInt(currentVolume * 100)}%";
+                _bgmVolumeText.text = _bgmToggle != null && _bgmToggle.isOn ? $"{Mathf.RoundToInt(currentVolume * 100)}%" : "0%";
         }
         else
         {
             _bgmVolumeSlider.value = 0.5f;
             if (_bgmVolumeText != null)
-                _bgmVolumeText.text = "50%";
+                _bgmVolumeText.text = _bgmToggle != null && _bgmToggle.isOn ? "50%" : "0%";
         }
     }
 
