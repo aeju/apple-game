@@ -43,9 +43,9 @@ public class ParticleAutoDestroy : MonoBehaviour
             
             float p = t / duration;
             
-            // 포물선 움직임 (위로 튕김)
+            // 포물선 움직임 (위로 튕김) - 기존 0.3f → 0.55f
             transform.position = Vector3.Lerp(startPos, endPos, p);
-            transform.position += Vector3.up * (Mathf.Sin(p * Mathf.PI) * 0.3f);
+            transform.position += Vector3.up * (Mathf.Sin(p * Mathf.PI) * 0.55f);
             
             // 회전
             transform.eulerAngles = new Vector3(0, 0, startRotation + rotationSpeed * t);

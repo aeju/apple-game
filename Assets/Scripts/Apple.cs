@@ -590,28 +590,25 @@ public class Apple : MonoBehaviour
     /// </summary>
     private void SpawnPawParticles()
     {
-        int particleCount = Random.Range(4, 7); // 4-6개
+        int particleCount = Random.Range(5, 8); // 5-7개
         
         for (int i = 0; i < particleCount; i++)
         {
-            // 파티클 생성
             var particleGo = new GameObject("PawParticle");
             particleGo.transform.position = transform.position;
-            particleGo.transform.localScale = transform.localScale * 0.3f; // 작게
+            particleGo.transform.localScale = transform.localScale * 0.35f; // 기존 0.3f
             
             var sr = particleGo.AddComponent<SpriteRenderer>();
             sr.sprite = _sr.sprite;
             sr.color = _baseColor;
             sr.sortingOrder = _sr.sortingOrder + 1;
             
-            // 랜덤 방향으로 날아가기
             float angle = (360f / particleCount) * i + Random.Range(-20f, 20f);
             Vector3 direction = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad), 0);
             float distance = Random.Range(0.8f, 1.5f);
             
-            // 자체 파괴 컴포넌트 추가
             var autoDestroy = particleGo.AddComponent<ParticleAutoDestroy>();
-            autoDestroy.StartFloat(direction * distance, Random.Range(0.4f, 0.6f));
+            autoDestroy.StartFloat(direction * distance, Random.Range(0.5f, 0.7f)); // 기존 0.4-0.6
         }
     }
     
@@ -640,13 +637,11 @@ public class Apple : MonoBehaviour
             float size = Random.Range(0.1f, 0.2f);
             sparkleGo.transform.localScale = Vector3.one * size;
             
-            // 랜덤 방향으로
             Vector3 direction = new Vector3(Random.Range(-1f, 1f), Random.Range(-1f, 1f), 0).normalized;
-            float distance = Random.Range(0.5f, 1.2f);
+            float distance = Random.Range(1.0f, 2.4f); // 기존 0.5-1.2의 2배
             
-            // 자체 파괴 컴포넌트 추가
             var autoDestroy = sparkleGo.AddComponent<ParticleAutoDestroy>();
-            autoDestroy.StartFloat(direction * distance, Random.Range(0.3f, 0.5f));
+            autoDestroy.StartFloat(direction * distance, Random.Range(0.4f, 0.6f)); // 기존 0.3-0.5
         }
     }
     
