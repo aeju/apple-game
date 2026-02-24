@@ -51,6 +51,33 @@ public class DragSelector : MonoBehaviour
             ThemeManager.Instance.OnThemeChanged.AddListener(OnThemeChanged);
             ApplyThemeColors(); // 초기 색상 적용
         }
+
+        // 게임 상태 변경 구독 - Playing 아닌 상태로 바뀌면 드래그 강제 취소
+        if (Application.isPlaying && GameManager.Instance != null)
+            GameManager.Instance.OnStateChanged.AddListener(OnGameStateChanged);
+    }
+
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnStateChanged.RemoveListener(OnGameStateChanged);
+    }
+
+    private void OnGameStateChanged(GameState state)
+    {
+        if (state != GameState.Playing)
+            CancelDrag();
+    }
+
+    /// <summary>
+    /// 드래그를 강제로 취소하고 시각 요소를 초기화합니다.
+    /// </summary>
+    public void CancelDrag()
+    {
+        if (!_isDragging) return;
+        _isDragging = false;
+        ClearHighlights();
+        ShowVisuals(false);
     }
 
     private void OnThemeChanged(ThemeManager.Theme theme)
