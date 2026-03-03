@@ -1,14 +1,29 @@
-body { padding: 0; margin: 0 }
+body { padding: 0; margin: 0; background: #f4f0e7; overflow: hidden; }
 #unity-container { position: absolute }
-#unity-container.unity-desktop { left: 50%; top: 50%; transform: translate(-50%, -50%) }
 #unity-container.unity-mobile { position: fixed; width: 100%; height: 100% }
 #unity-canvas { background: #231F20 }
 .unity-mobile #unity-canvas { width: 100%; height: 100% }
+
+/* PC: 세로 기준으로 꽉 차게, 가로는 비율 유지하며 중앙 정렬 */
+#unity-container.unity-desktop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#unity-container.unity-desktop #unity-canvas {
+  height: 100vh;
+  width: auto;
+  aspect-ratio: 9 / 19.5;
+  max-height: 100vh;
+  object-fit: contain;
+}
 #unity-loading-bar { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none }
 #unity-logo { width: 154px; height: 130px; background: url('unity-logo-dark.png') no-repeat center }
 #unity-progress-bar-empty { width: 141px; height: 18px; margin-top: 10px; margin-left: 6.5px; background: url('progress-bar-empty-dark.png') no-repeat center }
 #unity-progress-bar-full { width: 0%; height: 18px; margin-top: 10px; background: url('progress-bar-full-dark.png') no-repeat center }
-#unity-footer { position: relative }
+#unity-footer { display: none }
 .unity-mobile #unity-footer { display: none }
 #unity-logo-title-footer { float:left; width: 102px; height: 38px; background: url('unity-logo-title-footer.png') no-repeat center }
 #unity-build-title { float: right; margin-right: 10px; line-height: 38px; font-family: arial; font-size: 18px }

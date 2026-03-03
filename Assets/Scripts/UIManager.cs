@@ -842,7 +842,7 @@ public class UIManager : MonoBehaviour
         {
             if (_resultScoreText == null && txt.text.Contains("Score:"))
                 _resultScoreText = txt;
-            else if (_resultApplesText == null && txt.text.Contains("Paws:"))
+            else if (_resultApplesText == null && (txt.text.Contains("Balls:") || txt.text.Contains("Paws:")))
                 _resultApplesText = txt;
             else if (_resultComboText == null && txt.text.Contains("Combo:"))
                 _resultComboText = txt;
@@ -860,7 +860,7 @@ public class UIManager : MonoBehaviour
         }
         if (_resultApplesText == null)
         {
-            _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0",
+            _resultApplesText = CreateTextElement(_resultPanel.transform, "Balls: 0",
                 resultDetailFontSize, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
             _secondaryTexts.Add(_resultApplesText);
             if (resultFont != null) _resultApplesText.font = resultFont;
@@ -886,6 +886,7 @@ public class UIManager : MonoBehaviour
             _nicknameInputField = serializedNicknameInput;
             _nicknameChangeButton = serializedNicknameSaveButton;
             _nicknameInputField.characterLimit = 12;
+            _nicknameInputField.contentType = TMP_InputField.ContentType.Alphanumeric;
             _nicknameInputField.text = _currentNickname;
             _nicknameChangeButton.onClick.RemoveAllListeners();
             _nicknameChangeButton.onClick.AddListener(OnNicknameChangeClicked);
@@ -895,6 +896,7 @@ public class UIManager : MonoBehaviour
             _nicknameInputField = _resultPanel.GetComponentInChildren<TMP_InputField>(true);
             if (_nicknameInputField != null)
             {
+                _nicknameInputField.contentType = TMP_InputField.ContentType.Alphanumeric;
                 _nicknameInputField.text = "";
                 var nicknameButtons = _resultPanel.GetComponentsInChildren<Button>(true);
                 foreach (var btn in nicknameButtons)
@@ -1903,11 +1905,38 @@ public class UIManager : MonoBehaviour
                 _comboText.text = $"x{combo} COMBO!";
 
             _comboText.color = Color.Lerp(CAT_EYE_GOLD, CAT_EYE_BRIGHT, Mathf.PingPong(Time.time * 3f, 0.5f));
+
+            // 콤보 3 이상 화면 흔들림
+            if (combo >= 3)
+            {
+                float intensity = combo >= 7 ? 0.06f : combo >= 5 ? 0.04f : 0.02f;
+                StartCoroutine(CoScreenShake(0.1f, intensity));
+            }
         }
         else
         {
             _comboText.text = "";
         }
+    }
+
+    private IEnumerator CoScreenShake(float duration, float magnitude)
+    {
+        var cam = Camera.main;
+        if (cam == null) yield break;
+
+        Vector3 originalPos = cam.transform.localPosition;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float x = Random.Range(-1f, 1f) * magnitude;
+            float y = Random.Range(-1f, 1f) * magnitude;
+            cam.transform.localPosition = new Vector3(originalPos.x + x, originalPos.y + y, originalPos.z);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        cam.transform.localPosition = originalPos;
     }
 
     private void UpdateHintButton(int remaining)
@@ -2063,7 +2092,7 @@ public class UIManager : MonoBehaviour
             _resultApplesText = serializedResultApplesText;
         else
         {
-            _resultApplesText = CreateTextElement(_resultPanel.transform, "Paws: 0",
+            _resultApplesText = CreateTextElement(_resultPanel.transform, "Balls: 0",
                 resultDetailFontSize, Color.gray, new Vector2(0, 105), new Vector2(500, 45), isPrimary: false);
             _secondaryTexts.Add(_resultApplesText);
             if (resultFont != null) _resultApplesText.font = resultFont;
@@ -2086,6 +2115,7 @@ public class UIManager : MonoBehaviour
             _nicknameInputField = serializedNicknameInput;
             _nicknameChangeButton = serializedNicknameSaveButton;
             _nicknameInputField.characterLimit = 12;
+            _nicknameInputField.contentType = TMP_InputField.ContentType.Alphanumeric;
             _nicknameInputField.text = _currentNickname;
             _nicknameChangeButton.onClick.RemoveAllListeners();
             _nicknameChangeButton.onClick.AddListener(OnNicknameChangeClicked);
@@ -2200,7 +2230,7 @@ public class UIManager : MonoBehaviour
         }
 
         _resultScoreText.text = $"Score: {sm.Score}";
-        _resultApplesText.text = $"Paws: {sm.ApplesRemoved}";
+        _resultApplesText.text = $"Balls: {sm.ApplesRemoved}";
         _resultComboText.text = $"Max Combo: {sm.MaxCombo}";
         _resultNewRecordText.gameObject.SetActive(false);
         
@@ -3013,6 +3043,7 @@ public class UIManager : MonoBehaviour
         _nicknameInputField = inputFieldGo.AddComponent<TMP_InputField>();
         _nicknameInputField.textComponent = CreateInputTextComponent(inputFieldGo.transform);
         _nicknameInputField.characterLimit = 12;
+        _nicknameInputField.contentType = TMP_InputField.ContentType.Alphanumeric;
         _nicknameInputField.text = _currentNickname;
 
         // 변경 버튼
