@@ -1,230 +1,95 @@
-# Apple Game (사과게임) - Unity WebGL
+# NYA NYA (사과게임) - Unity WebGL
 
-숫자의 합이 10이 되도록 사과를 드래그하여 선택하는 퍼즐 게임입니다.
-2007년 일본의 원작 사과게임을 Unity WebGL로 재구현한 버전입니다.
+숫자의 합이 10이 되도록 드래그해 공을 없애는 퍼즐 게임입니다.
+2007년 일본의 원작 사과게임을 Unity WebGL로 재구현했습니다.
+
+플레이: https://nya-nya.vercel.app/
+
+![NYA NYA 스크린샷 - 메인 메뉴, 게임 화면, 리더보드](docs/screenshot.png)
 
 ## 게임 규칙
 
-1. 10x17 그리드에 1~9 숫자가 적힌 사과 170개가 배치됩니다
+1. 10x17 그리드에 1~9 숫자가 적힌 공 170개가 배치됩니다
 2. 마우스/터치로 드래그하여 사각형 영역을 선택합니다
-3. 선택 영역 내 사과 숫자의 합이 **정확히 10**이면 사과가 제거됩니다
-4. 제거된 사과 위의 사과는 중력에 의해 아래로 떨어집니다
-5. 2분 안에 최대한 많은 사과를 제거하세요!
+3. 선택 영역 내 숫자의 합이 **정확히 10**이면 공이 제거됩니다
+4. 제거된 공 위의 공은 아래로 떨어집니다
+5. 제한 시간은 2분입니다
 
-## 차별화 기능 (원작 대비)
+## 원작 대비 추가 기능
 
-- **실시간 합계 표시**: 드래그 중 선택된 사과의 합을 실시간으로 표시
-- **힌트 시스템**: 유효한 조합을 하이라이트 (게임당 3회)
-- **셔플 기능**: 남은 사과의 위치를 섞기 (게임당 2회)
-- **콤보 시스템**: 연속 성공 시 점수 배율 증가
+- **실시간 합계 표시**: 드래그 중 선택된 숫자의 합을 표시
+- **힌트**: 유효한 조합을 하이라이트 (게임당 3회)
+- **셔플**: 남은 공의 위치를 섞기 (게임당 2회)
+- **콤보**: 3초 안에 연속 성공 시 점수 배율 증가 (콤보당 +15%)
+- **온라인 랭킹**: 게임 종료 후 닉네임·점수·콤보를 Firestore에 제출, 상위 10명 표시
 
-## 씬 설정 방법
+## 개발 과정: AI에 맡길 범위 조정
 
-1. Unity에서 `Assets/Scenes/SampleScene.unity`를 엽니다
-2. Hierarchy에서 기존 오브젝트를 모두 삭제합니다 (카메라 포함)
-3. 빈 GameObject를 생성합니다 (`Create Empty`)
-4. 이름을 `GameSetup`으로 변경합니다
-5. Inspector에서 `Add Component` → `AppleGameSetup`을 추가합니다
-6. **Play** 버튼을 누르면 모든 것이 자동으로 생성됩니다
+코드를 직접 쓰지 않는 것을 목표로 시작했고, 처음에는 UI 전체를 `UIManager`가 코드로 생성했습니다.
+이 구조에서는 버튼의 위치·색상·크기가 코드에 하드코딩되어 있어, 버튼 하나를 고쳐 달라고 요청하면 AI가 라벨 텍스트로 대상을 추측하다 다른 부분을 수정하는 일이 반복됐습니다.
 
-> AppleGameSetup이 카메라, 매니저, UI, 배경 등을 모두 자동 생성합니다.
+그래서 역할을 나눴습니다.
+
+- **시각적 조정 (직접)**: 메인·HUD·결과창의 버튼과 텍스트를 `[SerializeField]`로 노출해 Inspector에서 배치와 값을 조정
+- **기능·로직 (AI)**: 코드는 할당된 버튼에 동작을 연결하는 역할만 담당. 수정 요청은 "이 버튼의 이 동작"처럼 기능 단위로 지목
+
+Inspector에 할당되지 않은 요소는 기존처럼 코드로 생성됩니다.
 
 ## 프로젝트 구조
 
 ```
 Assets/
 ├── Scripts/
-│   ├── AppleGameSetup.cs   # 씬 부트스트래퍼 (이것만 오브젝트에 추가하면 됨)
-│   ├── GameManager.cs       # 게임 상태, 타이머, 흐름 제어
-│   ├── GridManager.cs       # 사과 그리드 생성/관리, 중력, 힌트, 셔플
-│   ├── Apple.cs             # 개별 사과 (숫자, 색상, 애니메이션)
-│   ├── DragSelector.cs      # 드래그 입력 처리, 선택 영역, 실시간 합계
-│   ├── ScoreManager.cs      # 점수, 콤보, 최고기록
-│   ├── UIManager.cs         # UI 패널 (메뉴, HUD, 카운트다운, 결과)
-│   └── AudioManager.cs      # 사운드 관리 (클립은 Inspector에서 할당)
-├── Scenes/
-│   └── SampleScene.unity
-└── Settings/
-    └── (URP 설정 파일들)
+│   ├── AppleGameSetup.cs          # 씬 부트스트래퍼 (카메라, 매니저, UI, 배경 생성)
+│   ├── GameManager.cs             # 게임 상태, 타이머, 힌트/셔플 횟수
+│   ├── GridManager.cs             # 그리드 생성/관리, 낙하, 힌트 탐색, 셔플
+│   ├── Apple.cs                   # 개별 공 (숫자, 색상, 애니메이션)
+│   ├── DragSelector.cs            # 드래그 입력, 선택 영역, 실시간 합계
+│   ├── ScoreManager.cs            # 점수, 콤보
+│   ├── UIManager.cs               # UI 패널 (메뉴, HUD, 카운트다운, 결과, 리더보드)
+│   ├── AudioManager.cs            # BGM, 효과음
+│   ├── ThemeManager.cs            # 밝은/어두운 테마
+│   ├── FirebaseManager.cs         # 랭킹 제출/조회 (WebGL은 JS 브리지 경유)
+│   ├── LocalLeaderboardManager.cs # 로컬 랭킹 저장 (PlayerPrefs)
+│   ├── LeaderboardEntry.cs
+│   ├── ParticleAutoDestroy.cs
+│   └── Editor/
+│       └── AppleGameSetupEditor.cs
+├── Plugins/WebGL/
+│   └── FirebaseBridge.jslib       # C# ↔ Firebase JS SDK 브리지
+├── WebGLTemplates/Firebase/
+│   └── index.html                 # Firebase JS SDK를 로드하는 WebGL 템플릿
+└── Scenes/
+    └── SampleScene.unity
 ```
 
-## 아키텍처
+## 랭킹 구조
 
 ```
-AppleGameSetup (부트스트래퍼)
-├── Camera (자동 생성, 직교 투영)
-├── GameManager (게임 상태 머신)
-│   ├── 타이머 (2분 카운트다운)
-│   ├── 힌트/셔플 관리
-│   └── 이벤트 시스템 (상태 변경 알림)
-├── GridManager (그리드 관리)
-│   ├── 사과 생성/배치
-│   ├── 중력 시스템
-│   ├── 힌트 탐색 알고리즘
-│   └── 셔플 (Fisher-Yates)
-├── DragSelector (입력 처리)
-│   ├── Pointer (마우스+터치 통합)
-│   ├── 선택 영역 시각 피드백
-│   └── 실시간 합계 표시
-├── ScoreManager (점수 시스템)
-│   ├── 콤보 (3초 타임아웃)
-│   ├── 최고기록 (PlayerPrefs)
-│   └── 점수 팝업 이벤트
-├── UIManager (UI 자동 생성)
-│   ├── 메인 메뉴
-│   ├── 게임 HUD
-│   ├── 카운트다운 오버레이
-│   └── 결과 화면
-├── AudioManager (오디오)
-│   ├── BGM
-│   └── SFX (Inspector에서 클립 할당)
-└── FirebaseManager (랭킹 시스템)
-    ├── 익명 인증
-    ├── 점수 제출
-    └── 리더보드 불러오기
+[WebGL 빌드]
+FirebaseManager (C#)
+  └─ DllImport → FirebaseBridge.jslib
+       └─ Firebase JS SDK (compat 10.12.2, WebGL 템플릿에서 로드)
+            ├─ 익명 인증
+            └─ Firestore `leaderboard` 컬렉션 (제출 / 상위 N개 조회)
+       └─ SendMessage로 결과를 C#에 전달
+
+[에디터 / 네이티브 빌드]
+FirebaseManager → Firebase Unity SDK (Auth, Firestore)
 ```
 
-## WebGL 빌드 설정
+설정 방법은 [FIREBASE_WEB_SETUP.md](FIREBASE_WEB_SETUP.md)(WebGL), [FIREBASE_SETUP.md](FIREBASE_SETUP.md)(Unity SDK)에 정리했습니다.
 
-### 필수 설정 (File → Build Settings → Player Settings)
+## 실행 / 빌드
 
-1. **Platform**: WebGL로 전환
-2. **Player Settings**:
-   - API Compatibility Level: `.NET Standard 2.1`
-   - IL2CPP Code Generation: `Faster (Smaller) Builds`
-   - Managed Stripping Level: `High`
-3. **Publishing Settings**:
-   - Compression Format: `Brotli` (가장 작은 크기)
-   - Data Caching: `Enabled`
-   - Debug Symbols: `Off`
-
-### 빌드 방법
-
-1. `File` → `Build Settings`
-2. `WebGL` 플랫폼 선택 → `Switch Platform`
-3. `Player Settings`에서 위 설정 적용
-4. `Build` 클릭하여 출력 폴더 선택
-5. 빌드 완료 후 `index.html`을 웹 서버에 배포
-
-### 호스팅
-
-- **itch.io**: 빌드 폴더를 zip으로 압축하여 업로드
-- **GitHub Pages**: 빌드 결과물을 `docs/` 폴더에 커밋
-- **직접 서버**: Brotli/gzip 서빙을 위한 MIME 타입 설정 필요
-
-## 오디오 추가 방법
-
-AudioManager에 AudioClip을 할당하면 사운드가 재생됩니다:
-
-1. 오디오 파일들을 `Assets/Audio/` 폴더에 추가
-2. Hierarchy에서 `AudioManager` 오브젝트 선택
-3. Inspector에서 각 슬롯에 AudioClip 드래그 앤 드롭:
-   - `BGM Clip`: 배경 음악
-   - `Success Clip`: 사과 제거 성공
-   - `Fail Clip`: 실패 피드백
-   - `Combo Clip`: 콤보 달성
-   - `Countdown Clip`: 카운트다운
-   - `Game Over Clip`: 게임 종료
-
-## 랭킹 시스템 (Firebase + 로컬)
-
-### 현재 상태
-- ✅ UI 구현 완료 (메인 메뉴 RANKING 버튼, 리더보드 패널)
-- ✅ 닉네임 시스템 완료 (LocalStorage 저장)
-- ✅ 자동 점수 제출 (게임 오버 시)
-- ✅ 로컬 랭킹 시스템 (PlayerPrefs, Firebase 없이 작동)
-- ✅ Firebase 코드 완성 (SDK 설치 시 바로 작동)
-
-### 랭킹 시스템 선택
-
-**옵션 1: 로컬 랭킹만 사용 (현재 기본)**
-- Firebase 설정 불필요
-- 각 사용자의 브라우저에만 저장
-- 바로 작동
-
-**옵션 2: Firebase 온라인 랭킹 (Vercel 배포용) ⭐ 권장**
-- 전 세계 플레이어와 랭킹 공유
-- 실시간 글로벌 리더보드
-- WebGL 빌드 → Vercel 배포
-- 📋 **[Firebase 웹 앱 설정 가이드 보기](FIREBASE_WEB_SETUP.md)** ← **Vercel 사용 시 이것!**
-
-**옵션 3: Firebase 온라인 랭킹 (Unity SDK)**
-- PC/모바일 네이티브 빌드용
-- Firebase Unity SDK 설치 필요
-- 📋 **[Firebase Unity SDK 가이드 보기](FIREBASE_SETUP.md)**
-
-### Firebase 연동 방법
-
-#### 1. Firebase 프로젝트 생성
-1. [Firebase Console](https://console.firebase.google.com/) 접속
-2. 새 프로젝트 생성
-3. Firestore Database 활성화
-4. Authentication → 로그인 방법 → 익명 활성화
-
-#### 2. Unity Firebase SDK 설치
-1. [Firebase Unity SDK](https://firebase.google.com/download/unity) 다운로드
-2. Unity에서 다음 패키지 임포트:
-   - `FirebaseAuth.unitypackage`
-   - `FirebaseFirestore.unitypackage`
-3. `google-services.json` (Android) 또는 `GoogleService-Info.plist` (iOS) 다운로드
-4. `Assets/` 폴더에 추가
-
-#### 3. 코드 활성화
-`FirebaseManager.cs` 파일에서 주석 해제:
-```csharp
-// 1. 상단 using 구문 주석 해제
-// 2. InitializeFirebase() 내부 코드 주석 해제
-// 3. SignInAnonymously() 주석 해제
-// 4. SubmitScore() 내부 코드 주석 해제
-// 5. LoadLeaderboard() 내부 코드 주석 해제
-```
-
-#### 4. Firestore 보안 규칙 설정
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /leaderboard/{document} {
-      // 인증된 사용자만 읽기/쓰기 가능
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-    }
-  }
-}
-```
-
-#### 5. 빌드 설정 (WebGL)
-- `Project Settings` → `Player` → `Publishing Settings`
-- Compression Format: `Disabled` (Firebase SDK와 호환성 문제 방지)
-- 또는 `Gzip` 사용
-
-### 작동 방식
-1. 게임 시작 시 자동으로 익명 로그인
-2. 게임 오버 시 닉네임+점수+콤보 자동 제출
-3. RANKING 버튼 클릭 → 상위 10명 불러오기
-4. 닉네임은 결과 화면에서 변경 가능 (LocalStorage 저장)
-
-### Firebase 없이 테스트
-- Firebase SDK 미설치 시 플레이스홀더 데이터로 작동
-- 모든 UI와 기능은 정상 작동
-- 실제 데이터 저장/불러오기만 불가능
+1. Unity 6 (6000.0.58f2)로 프로젝트를 엽니다
+2. `Assets/Scenes/SampleScene.unity`를 열고 Play
+3. WebGL 빌드: `Build Settings`에서 WebGL로 전환 → `Player Settings` → `Resolution and Presentation` → WebGL Template을 `Firebase`로 선택 → Build
+4. 빌드 결과물을 정적 호스팅(현재 Vercel)에 배포
 
 ## 기술 스택
 
-- Unity 6 (6000.0.58f2)
-- Universal Render Pipeline (2D)
-- Input System (마우스 + 터치 통합)
-- TextMeshPro (UI 텍스트)
-- Firebase (Firestore + Auth) - 선택사항
-
-## 향후 개발 계획
-
-### v1.5
-- 특수 사과 (폭탄, 황금, 무지개)
-- 추가 게임 모드 (Zen, 챌린지, 스테이지)
-
-### v2.0
-- ✅ 글로벌 리더보드 (UI 완료, Firebase 연동 준비 완료)
-- 리플레이 공유
-- 커스텀 테마/스킨
-- 친구 도전 시스템
+- Unity 6 (6000.0.58f2), Universal Render Pipeline (2D)
+- Input System (마우스 + 터치 통합), TextMeshPro
+- Firebase (Anonymous Auth, Firestore), WebGL `.jslib` 브리지
+- Vercel (배포)
